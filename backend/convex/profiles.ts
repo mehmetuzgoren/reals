@@ -86,7 +86,7 @@ export const bindAvatar = internalMutation({ args: { uploadId: v.id("avatarUploa
   const user = await viewer(ctx);
   const upload = await ctx.db.get(args.uploadId);
   if (!upload || upload.ownerId !== user._id || upload.state !== "uploading" || upload.lease !== args.lease || upload.leaseUntil <= Date.now() || upload.expiresAt <= Date.now()) return false;
-  if (args.width < 1 || args.height < 1 || args.width > 512 || args.height > 512) return false;
+  if (!Number.isInteger(args.width) || !Number.isInteger(args.height) || args.width < 1 || args.height < 1 || args.width > 2048 || args.height > 2048) return false;
   await ctx.db.patch(upload._id, { storageId: args.storageId, width: args.width, height: args.height, state: "ready", lease: null, leaseUntil: 0 });
   return true;
 } });

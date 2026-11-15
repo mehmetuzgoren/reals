@@ -8,6 +8,9 @@ import schema from "../convex/schema";
 import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { dailyPlans } from "../convex/lib/schedule";
+import * as verification from "../convex/lib/verification";
+import { fixtureBytes } from "./media-fixtures";
+export { fixtureBytes } from "./media-fixtures";
 
 export const modules = import.meta.glob("../convex/**/*.ts");
 export function setup() {
@@ -17,13 +20,8 @@ export function setup() {
   vi.stubEnv("CONVEX_SITE_URL", "https://take-test.convex.site");
   vi.stubEnv("TAKE_DEPLOYMENT_ENV", "development");
   vi.stubEnv("TAKE_HTTP_ORIGIN", "https://take-test.convex.site");
-  vi.stubEnv("MEDIA_VERIFIER_ORIGIN", "https://verifier.test");
-  vi.stubEnv("MEDIA_VERIFIER_SECRET", "test-only-verifier-secret-not-a-credential");
-  vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
-    const hash = new Headers(init?.headers).get("X-Content-SHA256");
-    if (String(_input).endsWith("/verify-avatar")) return Response.json({ sha256: hash, width: 64, height: 64, mimeType: "image/jpeg", imageBase64: "/9j/2Q==" });
-    return Response.json({ sha256: hash, durationMs: 3000, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac", thumbnailBase64: "/9j/2Q==" });
-  });
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected external request"));
+  vi.spyOn(verification, "verifyVideo");
   const t = convexTest({ schema, modules, transactionLimits: true });
   registerCore(t);
   registerPassword(t);
@@ -74,9 +72,8 @@ let sequence = 0;
 export async function begin(client: Actor, roundId: Id<"rounds">, parent: Id<"originalTakes"> | null = null, requestId = `test-request-${++sequence}`) {
   return client.mutation(api.uploads.begin, { requestId, kind: parent ? "reply" : "original", roundId, originalId: parent, optionId: parent ? null : "yes" });
 }
-export const fixtureBytes = new TextEncoder().encode("unit-test bytes; actual decoder is tested in verifier/");
-export async function send(client: Actor, intent: { uploadUrl: string }) {
-  return client.fetch(new URL(intent.uploadUrl).pathname, { method: "POST", headers: { "Content-Type": "video/mp4" }, body: fixtureBytes });
+export async function send(client: Actor, intent: { uploadUrl: string }, bytes = fixtureBytes) {
+  return client.fetch(new URL(intent.uploadUrl).pathname, { method: "POST", headers: { "Content-Type": "video/mp4" }, body: bytes });
 }
 export async function publish(client: Actor, roundId: Id<"rounds">, parent: Id<"originalTakes"> | null = null) {
   const intent = await begin(client, roundId, parent);
@@ -90,6 +87,12 @@ export async function playback(client: Actor, contentId: string, kind: "original
   return client.action(api.media.createPlaybackGrant, { contentId, kind, asset });
 }
 export function path(url: string) { const parsed = new URL(url); return parsed.pathname + parsed.search; }
+export async function seedLegacyThumbnail(t: Test, contentId: Id<"originalTakes"> | Id<"videoReplies">) {
+  await t.run(async ctx => {
+    const thumbnailStorageId = await ctx.storage.store(new Blob([new Uint8Array([255, 216, 255, 217])], { type: "image/jpeg" }));
+    await ctx.db.patch(contentId, { thumbnailStorageId });
+  });
+}
 export async function matrix(t: Test) {
   const alex = await user(t, "alex");
   const blair = await user(t, "blair");
@@ -106,5 +109,7 @@ export async function matrix(t: Test) {
   const original = await publish(alex.client, roundId);
   for (const person of [blair, casey, dana, ellis, pending]) await publish(person.client, roundId);
   const reply = await publish(blair.client, roundId, original.originalId);
+  await seedLegacyThumbnail(t, original.originalId);
+  await seedLegacyThumbnail(t, reply.replyId);
   return { alex, blair, casey, dana, ellis, locked, pending, roundId, original, reply };
 }

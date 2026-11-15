@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
 import { actor, setup, user, round, publish, path, playback, befriend, sessionClient, testPassword } from "./helpers";
+import { avatarPng } from "./media-fixtures";
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -62,14 +63,14 @@ describe("identity-derived social and profile APIs", () => {
     expect(intent).toMatchObject({ acceptedMimeTypes: ["image/jpeg", "image/png"], maxWidth: 2048, maxHeight: 2048, maxBytes: 2097152 });
     expect((await blair.client.fetch(new URL(intent.uploadUrl).pathname, { method: "POST", headers: { "Content-Type": "image/png" }, body: "fake" })).status).toBe(404);
     await expect(alex.client.mutation(api.profiles.update, { displayName: "Changed", avatarUploadId: intent.uploadId })).rejects.toThrow("INVALID_MEDIA");
-    const response = await alex.client.fetch(new URL(intent.uploadUrl).pathname, { method: "POST", headers: { "Content-Type": "image/png" }, body: "test-image-bytes-validated-by-mocked-worker" });
+    const response = await alex.client.fetch(new URL(intent.uploadUrl).pathname, { method: "POST", headers: { "Content-Type": "image/png" }, body: avatarPng });
     expect(await response.json()).toEqual({ uploadId: intent.uploadId });
     await expect(blair.client.mutation(api.profiles.update, { displayName: "Blair", avatarUploadId: intent.uploadId })).rejects.toThrow("NOT_FOUND");
     const updated = await alex.client.mutation(api.profiles.update, { displayName: "Changed", avatarUploadId: intent.uploadId });
     expect(updated.avatar).toEqual({ url: `https://take-test.convex.site/v1/avatars/${alex.profile.id}` });
     const avatar = await t.fetch(path(updated.avatar!.url));
-    expect(avatar.status).toBe(200); expect(avatar.headers.get("Content-Type")).toBe("image/jpeg");
-    expect(new Uint8Array(await avatar.arrayBuffer())).toEqual(new Uint8Array([255, 216, 255, 217]));
+    expect(avatar.status).toBe(200); expect(avatar.headers.get("Content-Type")).toBe("image/png");
+    expect(new Uint8Array(await avatar.arrayBuffer())).toEqual(avatarPng);
     expect(await alex.client.mutation(api.profiles.update, { displayName: "Again", avatarUploadId: null })).toMatchObject({ displayName: "Again", avatar: updated.avatar });
     const profile = await alex.client.query(api.profiles.mine, { cursor: null, limit: 20 });
     expect(profile).toMatchObject({ originals: { items: [], nextCursor: null }, preferences: { dailyQuestion: true, directReply: true } });

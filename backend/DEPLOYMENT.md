@@ -16,7 +16,7 @@ TAKE_HTTP_ORIGIN=https://<deployment>.convex.site
 TAKE_ALLOW_DEV_SEED=false
 ```
 
-Convex Auth 2.0.0's Apple component requires its four bindings even when using only development password sign-in. The literal `unconfigured` satisfies installation, but **both Apple start and completion reject any missing, empty or placeholder credential with `PROCESSING_UNAVAILABLE`**, in development and production. It is not a fake key or an authentication fallback. Development deployment/sign-in needs no additional secret beyond the deploy credential. Omit media-verifier configuration until a real worker exists; publication then fails closed rather than issuing a receipt.
+Convex Auth 2.0.0's Apple component requires its four bindings even when using only development password sign-in. The literal `unconfigured` satisfies installation, but **both Apple start and completion reject any missing, empty or placeholder credential with `PROCESSING_UNAVAILABLE`**, in development and production. It is not a fake key or an authentication fallback. Development deployment/sign-in needs no additional secret beyond the deploy credential. Media verification runs inside Convex and needs no additional host, variables or binaries.
 
 With a scoped deployment key, run `npx convex env set NAME VALUE` without `--deployment`; that flag selects the member-login path rather than the deployment-key path. Keep the key only in the secure environment. Optional root Apple bindings cannot replace placeholders: the official component's required-string schema rejects references to optional parent variables during deployment validation.
 
@@ -72,21 +72,19 @@ The internal deletion transaction sets the user to `deleting`, erases the visibl
 
 Administrators may call internal `admin:setDisabled({ userId, disabled: true })` through authorized Convex administration. The app immediately denies existing sessions/grants while disabled. Re-enabling an ordinarily disabled account is allowed; a deletion tombstone cannot be reactivated. Normal clients cannot call internal administration.
 
-## Application variables and trusted media verifier
+## Application variables and in-Convex media checks
 
 | Variable | Use |
 | --- | --- |
 | `TAKE_HTTP_ORIGIN` | HTTPS application HTTP origin without a trailing slash; configure the native HTTP origin separately from its SDK URL. |
-| `MEDIA_VERIFIER_ORIGIN` | Trusted worker HTTPS origin without path/trailing slash; required only to enable media verification. |
-| `MEDIA_VERIFIER_SECRET` | Random shared server-only secret of at least 32 characters; matches worker `VERIFY_SHARED_SECRET`. |
 | `TAKE_ROUND_TIMEZONE` | IANA zone; defaults to `America/Los_Angeles`. |
 | `TAKE_ROUND_START_HOUR`, `TAKE_ROUND_END_HOUR` | Half-open local-hour window; defaults to 10 and 20, integer 0–23, start < end. |
 | `TAKE_DEPLOYMENT_ENV`, `TAKE_ALLOW_DEV_SEED` | Use `production` and `false` in production. The former never defaults to development. |
 | `CONVEX_DEPLOY_KEY` | Deployment credential, not a runtime or client value. |
 
-Deploy `verifier/` as the included nonroot, resource-bounded container behind authenticated HTTPS. Its README specifies image/build, CPU/memory/process/temp limits, ingress bounds, concurrency and shared-secret delivery. Convex sends actual stored bytes plus SHA-256; the worker hashes and fully decodes those bytes, validates the media, and returns matching-hash trusted metadata and generated JPEGs. The worker checks exact decoded/sample-table duration ticks against 3,000–15,000 ms, with no grace period for short clips rounded to 3,000. Convex independently bounds the response and rechecks that interval before atomic publication. No worker or bad configuration means `PROCESSING_UNAVAILABLE`, no receipt and no unlock.
+Publication uses the bounded structural checker in `convex/lib/isoBmff.ts`, with exact stored-byte SHA-256 binding. It accepts one portrait H.264/HEVC track in MP4/MOV, zero or one AAC track, exact sample-table duration 3,000–15,000 ms and at most 8 MiB. Native fast-start 720×1280 H.264/AAC MP4 is the main integration fixture. Invalid media cannot issue a receipt or unlock content; the existing atomic publication guards remain in place. There is no deployment switch or external verifier request. Existing `MEDIA_VERIFIER_*` variables, if present, are unused and can be removed.
 
-Set the ingress cap for TAKE video to at least 8 MiB and avatar input to at least 2 MiB, with a strict service ceiling of 20 MiB. The worker never fetches client URLs. Terminate TLS correctly; redact bodies, authorization and private grant URLs from logs. Do not CDN-cache private `/v1/media/` routes. Scale bounded worker instances rather than removing limits; overload must fail closed.
+The checker does not fully decode codecs or guarantee audible audio or every payload's playability. New publications generate no thumbnail (`thumbnailAssetId: null`); legacy thumbnail authorization is retained. JPEG/PNG avatars are structurally checked up to 2 MiB/2048×2048 and retain original bytes, MIME and metadata. The historical `verifier/` tree is retained unchanged but is not required or used. Redact bodies, authorization and private grant URLs from logs; do not CDN-cache private `/v1/media/` routes.
 
 ## Explicitly unavailable push delivery
 
@@ -100,6 +98,6 @@ Jobs use bounded retries and per-device receipts, so successful targets are skip
 
 `planner:plan` is internal and maintains the next three eligible local dates. The hourly cron preserves zoned windows, skips elapsed plans and closes the current round only when a valid successor opens. `CONVEX_DEPLOYMENT=dev:<name> npm run seed:dev` additionally requires exact development mode and `TAKE_ALLOW_DEV_SEED=true`; it creates plans, never users, media, receipts or an auth bypass. Offline native fixtures remain separate.
 
-Local verification covers real Convex Auth component signup/signin/refresh/signout, tombstones/revocation, production development-session denial, the stateless relay, privacy/publication/media/planner invariants and unavailable push. The separate media suite runs actual HTTP and FFmpeg, and the verifier tests adversarial decoding. A real local Convex HTTP smoke also verifies signed JWT acceptance and session deletion; it is not a cloud result.
+Local verification covers real Convex Auth component signup/signin/refresh/signout, tombstones/revocation, production development-session denial, the stateless relay, privacy/publication/media/planner invariants and unavailable push. The separate media suite exercises registered HTTP routes and the real structural checker with FFmpeg-generated fixtures. Historical verifier decoder tests are separate from the active policy. Neither local tests nor earlier local JWT/session smoke checks are cloud results.
 
-Before production, verify real Apple browser OAuth and iOS callback/configuration on the deployed site, invalid/expired JWT rejection, real authenticated upload→hosted TLS verifier→receipt→private playback, social/grant revocation, round scheduling and load/retention/logging controls. Remote push requires implementing and verifying the APNs worker on a signed physical device; it is unavailable today. No simulator, local test or successful deployment proves those external behaviors.
+Before production, verify real Apple browser OAuth and iOS callback/configuration on the deployed site, invalid/expired JWT rejection, physical iPhone capture→authenticated upload→in-Convex check→receipt→private playback, social/grant revocation, round scheduling and load/retention/logging controls. Remote push requires implementing and verifying the APNs worker on a signed physical device; it is unavailable today. No simulator, local test or successful deployment proves those external behaviors.

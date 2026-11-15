@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
 import { byteRange, readBody } from "../convex/lib/http";
 import http from "../convex/http";
-import { setup, user, round, begin, send, publish, path, playback, fixtureBytes } from "./helpers";
+import { setup, user, round, begin, send, publish, path, playback, fixtureBytes, seedLegacyThumbnail } from "./helpers";
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -64,6 +64,7 @@ describe("private HTTP bytes", () => {
     const expired = await t.fetch(path(grant.url));
     expect(expired.status).toBe(404);
     expect(await expired.json()).toEqual(await forgedResponse.json());
+    await seedLegacyThumbnail(t, original.originalId);
     const newer = await playback(alex.client, original.originalId, "original", "thumbnail");
     await alex.client.mutation(api.takes.delete, { id: original.originalId });
     expect((await t.fetch(path(newer.url))).status).toBe(404);

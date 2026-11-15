@@ -43,7 +43,7 @@ const upload = httpAction(async (ctx, request) => {
       bound = await ctx.runMutation(internal.uploads.bindUpload, { uploadId: claimedId as Id<"uploads">, lease, storageId, sha256: hash, byteCount: bytes.byteLength });
     } else {
       const verified = await verifyAvatar(bytes, hash);
-      storageId = await ctx.storage.store(new Blob([verified.image], { type: "image/jpeg" }));
+      storageId = await ctx.storage.store(new Blob([verified.image], { type: verified.mimeType }));
       bound = await ctx.runMutation(internal.profiles.bindAvatar, { uploadId: claimedId as Id<"avatarUploads">, lease, storageId, width: verified.width, height: verified.height });
     }
     if (!bound) fail("CONFLICT", "Upload could not be bound to this intent", true);
@@ -84,8 +84,8 @@ http.route({ pathPrefix: "/v1/avatars/", method: "GET", handler: httpAction(asyn
     if (!userId) return notFound();
     const storageId = await ctx.runQuery(internal.profiles.avatarAsset, { userId });
     const blob = storageId ? await ctx.storage.get(storageId) : null;
-    if (!blob) return notFound();
-    return new Response(blob, { headers: { ...privateHeaders, "Content-Type": "image/jpeg", "Content-Length": String(blob.size) } });
+    if (!blob || !["image/jpeg", "image/png"].includes(blob.type)) return notFound();
+    return new Response(blob, { headers: { ...privateHeaders, "Content-Type": blob.type, "Content-Length": String(blob.size) } });
   } catch (error) { return httpError(error); }
 }) });
 export default http;
