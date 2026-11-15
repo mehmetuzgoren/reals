@@ -309,4 +309,79 @@ final class DemoServiceTests: XCTestCase {
         XCTAssertNil(playback.player)
         XCTAssertNil(playback.activeID)
     }
+
+    func testPublicationRetryFinalizesBoundBytesAfterVerifierOutage() async throws { try await checkPublicationRecovery(.verifierOutage) }
+
+    func testPublicationRetryFinalizesBoundBytesAfterLostUploadAcknowledgment() async throws { try await checkPublicationRecovery(.lostAcknowledgment) }
+
+    func testPublicationRetryUploadsOnlyWhenExistingIntentHasNoBytes() async throws { try await checkPublicationRecovery(.unboundFailure) }
+
+    private func checkPublicationRecovery(_ scenario: BackendUploadFixture.Scenario) async throws {
+        let backend = BackendUploadFixture(directory: directory, reset: true)
+        backend.scenario = scenario
+        service = backend
+        let model = AppModel()
+        model.service = backend
+        model.viewer = try await backend.session().profile
+        model.acceptToday(try await backend.today())
+        let original = try await draft()
+        do { _ = try await model.publish(original) { _, _ in }; XCTFail("The injected failure must preserve a retry draft") }
+        catch { checkTrue((error as? ServiceFailure)?.retryable == true) }
+        checkFalse(try await backend.today().canViewFriends)
+        var retry = try XCTUnwrap(model.recoveredDraft)
+        let uploadID = try XCTUnwrap(retry.uploadId)
+        let status = try await backend.uploadStatus(uploadId: uploadID)
+        XCTAssertNil(status.progress)
+        retry.state = .failed
+        retry = model.saveDraft(retry)
+        let published = try await model.publish(retry) { _, _ in }
+        checkEqual(published.state, .published)
+        checkEqual(published.uploadId, uploadID)
+        checkEqual(backend.postAttempts, scenario == .unboundFailure ? 2 : 1)
+        checkTrue(try await backend.today().canViewFriends)
+        checkEqual(try await backend.profile(cursor: nil).originals.items.count, 1)
+    }
+}
+
+@MainActor
+private final class BackendUploadFixture: DemoService {
+    enum Scenario: Equatable { case verifierOutage, lostAcknowledgment, unboundFailure }
+    var scenario = Scenario.verifierOutage
+    private(set) var postAttempts = 0
+    private var bound = false
+    private var injectedFailure = false
+    private var verifierFailure: ServiceFailure?
+
+    override func upload(clip: RecordedClip, intent: UploadIntent, progress: @escaping (Double) -> Void) async throws {
+        postAttempts += 1
+        guard !bound else { throw ServiceFailure(code: "CONFLICT", message: "Upload already received", retryable: true) }
+        if scenario == .unboundFailure, !injectedFailure {
+            injectedFailure = true
+            throw ServiceFailure(code: "UPLOAD_NETWORK", message: "Connection lost before binding", retryable: true)
+        }
+        try await super.upload(clip: clip, intent: intent, progress: progress)
+        bound = true
+        if scenario == .lostAcknowledgment, !injectedFailure {
+            injectedFailure = true
+            throw ServiceFailure(code: "UPLOAD_NETWORK", message: "Acknowledgment lost after binding", retryable: true)
+        }
+    }
+
+    override func finalize(uploadId: String) async throws -> PublicationResult {
+        guard bound else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Upload the video before publishing", retryable: false) }
+        if scenario == .verifierOutage, !injectedFailure {
+            injectedFailure = true
+            let failure = ServiceFailure(code: "PROCESSING_UNAVAILABLE", message: "Verifier temporarily unavailable", retryable: true)
+            verifierFailure = failure
+            return PublicationResult(state: "failed", originalId: nil, replyId: nil, receipt: nil, failure: failure)
+        }
+        let result = try await super.finalize(uploadId: uploadId)
+        verifierFailure = nil
+        return result
+    }
+
+    override func uploadStatus(uploadId: String) async throws -> UploadStatus {
+        let value = try await super.uploadStatus(uploadId: uploadId)
+        return UploadStatus(state: verifierFailure == nil ? value.state : "failed", progress: value.result == nil ? nil : 1, result: value.result, failure: verifierFailure)
+    }
 }

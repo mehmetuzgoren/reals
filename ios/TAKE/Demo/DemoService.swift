@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class DemoService: TakeService, DemoControlling {
+class DemoService: TakeService, DemoControlling {
     struct StoredOriginal: Codable {
         var summary: OriginalSummary
         var clip: RecordedClip

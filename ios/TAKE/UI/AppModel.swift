@@ -271,38 +271,43 @@ final class AppModel: ObservableObject {
         var draft = saveDraft(initial)
         let epoch = generation
         let revision = accessRevision
-        var uploaded = false
-        var processing = false
+        var result: PublicationResult?
+        var needsUpload = true
         if let id = draft.uploadId {
             let status = try await service.uploadStatus(uploadId: id)
             guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
             if let result = status.result, result.state == "published" { return try await finish(draft, result: result, epoch: epoch, revision: revision) }
-            uploaded = (status.progress ?? 0) >= 1
-            processing = status.state == "processing"
-        }
-        let intent: UploadIntent
-        if !processing {
-            intent = try await service.beginUpload(draft: draft)
-            guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
-            draft.uploadId = intent.uploadId
-            draft.state = .uploading; draft.failure = nil; draft = saveDraft(draft); update(draft, uploaded ? 1 : 0)
-            if !uploaded {
-                let uploadingDraft = draft
-                try await service.upload(clip: clip, intent: intent) { progress in update(uploadingDraft, progress) }
+            draft.state = .processing; draft.failure = nil; draft = saveDraft(draft); update(draft, 0)
+            do {
+                result = try await service.finalize(uploadId: id)
+                needsUpload = false
+            } catch {
+                guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
+                guard status.state == "uploading", (error as? ServiceFailure)?.code == "INVALID_MEDIA" else { throw error }
             }
         }
-        guard isCurrentAccess(generation: epoch, revision: revision), let uploadID = draft.uploadId else { throw ServiceFailure.notFound }
-        draft.state = .processing; draft = saveDraft(draft); update(draft, 1)
-        var result = try await service.finalize(uploadId: uploadID)
-        for _ in 0..<20 where result.state == "processing" {
+        if needsUpload {
+            let intent = try await service.beginUpload(draft: draft)
+            guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
+            draft.uploadId = intent.uploadId
+            draft.state = .uploading; draft.failure = nil; draft = saveDraft(draft); update(draft, 0)
+            let uploadingDraft = draft
+            guard let stagedClip = draft.clip else { throw ServiceFailure.notFound }
+            try await service.upload(clip: stagedClip, intent: intent) { progress in update(uploadingDraft, progress) }
+            guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
+            draft.state = .processing; draft = saveDraft(draft); update(draft, 1)
+            result = try await service.finalize(uploadId: intent.uploadId)
+        }
+        guard isCurrentAccess(generation: epoch, revision: revision), let uploadID = draft.uploadId, var publication = result else { throw ServiceFailure.notFound }
+        for _ in 0..<20 where publication.state == "processing" {
             try await Task.sleep(for: .seconds(2))
             guard isCurrentAccess(generation: epoch, revision: revision) else { throw ServiceFailure.notFound }
             let status = try await service.uploadStatus(uploadId: uploadID)
-            if let complete = status.result { result = complete }
+            if let complete = status.result { publication = complete }
             else if status.state == "failed" { throw status.failure ?? ServiceFailure(code: "PROCESSING_FAILED", message: "This video couldn't be processed. Retake or retry.", retryable: true) }
         }
-        guard result.state != "processing" else { throw ServiceFailure(code: "STILL_PROCESSING", message: "Your video is still processing. Your draft is saved. Check again shortly; your feed won't unlock until publication is confirmed.", retryable: true) }
-        return try await finish(draft, result: result, epoch: epoch, revision: revision)
+        guard publication.state != "processing" else { throw ServiceFailure(code: "STILL_PROCESSING", message: "Your video is still processing. Your draft is saved. Check again shortly; your feed won't unlock until publication is confirmed.", retryable: true) }
+        return try await finish(draft, result: publication, epoch: epoch, revision: revision)
     }
 
     private func finish(_ draft: PublicationDraft, result: PublicationResult, epoch: UUID, revision: UUID) async throws -> PublicationDraft {

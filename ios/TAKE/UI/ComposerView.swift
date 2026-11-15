@@ -40,7 +40,7 @@ struct ComposerView: View {
                         if publishing {
                             VStack(alignment: .leading, spacing: 10) {
                                 ProgressView(value: progress).tint(TakeTheme.lime)
-                                Text(draft.state == .processing ? "Processing your video. Your take isn't public yet." : "Uploading privately… \(Int(progress * 100))%").font(.subheadline).foregroundStyle(TakeTheme.muted)
+                                Text(draft.state == .processing ? "Confirming publication. Your feed unlocks only after the server confirms." : "Uploading privately… \(Int(progress * 100))%").font(.subheadline).foregroundStyle(TakeTheme.muted)
                             }.accessibilityElement(children: .combine)
                         }
                         if let failure = draft.failure { InlineNotice(text: failure) }
