@@ -28,16 +28,26 @@ def collect(value):
                 collect(item)
 
 
-for manifest in directory.glob("*.json"):
-    collect(json.loads(manifest.read_text()))
-
-if sorted(screens) != [f"{index:02}" for index in range(1, 9)]:
-    raise SystemExit(f"Expected eight named demo screenshots; exported {sorted(screens)}")
-
-for name, path in sorted(screens.items()):
+def emit(name, path):
     data = path.read_bytes()
     encoded = base64.b64encode(data).decode("ascii")
     print(f"REALS_MOCK_IMAGE {name} {path.suffix.lower()} {len(data)} {hashlib.sha256(data).hexdigest()}")
     for index, start in enumerate(range(0, len(encoded), 2000)):
         print(f"REALS_MOCK_DATA {name} {index:04} {encoded[start:start + 2000]}")
     print(f"REALS_MOCK_END {name}")
+
+
+for manifest in directory.glob("*.json"):
+    collect(json.loads(manifest.read_text()))
+
+for name, path in sorted(screens.items()):
+    emit(name, path)
+
+named = set(screens.values())
+extras = sorted((path for path in directory.iterdir() if path.suffix.lower() in (".png", ".jpg", ".jpeg") and path not in named), key=lambda path: path.stat().st_mtime)
+for index, path in enumerate(extras[-3:], start=1):
+    emit(f"x{index}", path)
+
+missing = [f"{index:02}" for index in range(1, 9) if f"{index:02}" not in screens]
+if missing:
+    raise SystemExit(f"REALS_MOCK_MISSING {' '.join(missing)}")
