@@ -10,12 +10,18 @@ const tokens = { casey: 'casey-token', dana: 'dana-token', locked: 'locked-token
 const profile = { id: 'author', username: 'author', displayName: 'Author', avatar: null };
 const original = { id: 'original', roundId: 'round', author: profile, visibleReplyCount: 1 };
 const reply = { id: 'reply', originalId: 'original', roundId: 'round', author: profile, publishedAt: 1000 };
+const round = {
+  id: 'round', question: 'Do you like pineapple on pizza?', options: [{ id: 'yes', label: 'Yes' }],
+  opensAt: 1000, closesAt: null, isCurrent: true,
+};
 const safeToday = {
-  serverNow: 1000, round: { id: 'round' }, viewerReceipt: null,
+  serverNow: 1000, round, viewerReceipt: null,
   canViewFriends: false, ownOriginal: null, friendPresence: [{ profile, hasPublished: true }],
 };
 const success = (value) => Response.json({ status: 'success', value });
-const denied = () => Response.json({ status: 'error', errorData: { code: 'NOT_FOUND' } });
+const denied = () => Response.json({ status: 'error', errorData: {
+  code: 'NOT_FOUND', message: 'Content unavailable', retryable: false,
+} });
 const grant = () => ({ url: `${manifest.siteUrl}/v1/media/grant?token=secret`, expiresAt: Date.now() + 60_000 });
 
 function transport(transform = (value) => value) {
@@ -33,7 +39,7 @@ function transport(transform = (value) => value) {
     assert.ok(identity);
     let value;
     if (path === 'rounds:today') value = identity === 'locked' ? structuredClone(safeToday) : {
-      round: { id: 'round' }, viewerReceipt: { roundId: 'round' }, canViewFriends: true,
+      round, viewerReceipt: { roundId: 'round' }, canViewFriends: true,
     };
     if (path === 'takes:feed') value = { items: identity === 'locked' ? [] : [
       { ...original, visibleReplyCount: identity === 'casey' ? 1 : 0 },
@@ -98,6 +104,30 @@ test('locked Today rejects direct and nested content leaks', () => {
   assert.throws(() => lockedToday({ ...safeToday, friendPresence: [
     { profile: { ...profile, position: 'Yes' }, hasPublished: true },
   ] }, 'round'), ProbeFailure);
+  assert.throws(() => lockedToday({ ...safeToday, round: {
+    ...round, privateTake: { position: 'Yes', thumbnailAssetId: 'hidden' },
+  } }, 'round'), ProbeFailure);
+  assert.throws(() => lockedToday({ ...safeToday, round: {
+    ...round, options: [{ ...round.options[0], privateReply: 'hidden' }],
+  } }, 'round'), ProbeFailure);
+});
+
+test('response logs, unexpected envelope fields and revealing denial text cannot pass', async () => {
+  const failure = { code: 'NOT_FOUND', message: 'Content unavailable', retryable: false };
+  for (const value of [
+    { status: 'success', value: safeToday, logLines: ['private caption'] },
+    { status: 'success', value: safeToday, privateReply: 'hidden' },
+    { status: 'error', errorData: failure, logLines: ['private caption'] },
+    { status: 'error', errorData: failure, errorMessage: 'Blair said Yes' },
+    { status: 'error', errorData: { ...failure, message: 'Blair said Yes' } },
+    { status: 'error', errorData: { ...failure, privateAuthor: 'Blair' } },
+  ]) {
+    const probe = new ConvexProbe(manifest, tokens, async () => Response.json(value));
+    await assert.rejects(() => probe.call('query', 'takes:detail', {}, 'locked'), ProbeFailure);
+  }
+  await new ConvexProbe(manifest, tokens, async () => Response.json({
+    status: 'error', errorData: failure, errorMessage: 'Content unavailable', logLines: [],
+  })).denied('query', 'takes:detail', {}, 'locked');
 });
 
 test('pagination follows cursors and detects cycles', async () => {

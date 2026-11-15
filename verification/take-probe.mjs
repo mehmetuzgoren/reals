@@ -49,8 +49,19 @@ export class ConvexProbe {
       body: JSON.stringify({ path, args, format: 'json' }),
     });
     const data = await response.json();
-    if (response.ok && data.status === 'success') return { ok: true, value: data.value };
-    if (data.status === 'error' && data.errorData && typeof data.errorData.code === 'string') {
+    check(data.logLines === undefined || (Array.isArray(data.logLines) && data.logLines.length === 0));
+    if (response.ok && data.status === 'success') {
+      keys(data, ['status', 'value', 'logLines']);
+      return { ok: true, value: data.value };
+    }
+    if (data.status === 'error' && data.errorData) {
+      keys(data, ['status', 'errorMessage', 'errorData', 'logLines']);
+      keys(data.errorData, ['code', 'message', 'retryable']);
+      check(typeof data.errorData.code === 'string' && typeof data.errorData.retryable === 'boolean');
+      check(['Not found', 'Content unavailable', 'Unavailable'].includes(data.errorData.message));
+      check(data.errorMessage === undefined || [
+        data.errorData.message, JSON.stringify(data.errorData), `Uncaught ConvexError: ${JSON.stringify(data.errorData)}`,
+      ].includes(data.errorMessage));
       return { ok: false, code: data.errorData.code };
     }
     throw new ProbeFailure();
@@ -122,7 +133,7 @@ export class ConvexProbe {
     });
     check([403, 404].includes(denial.status));
     check(!denial.headers.get('content-type')?.startsWith('video/'));
-    await denial.body?.cancel();
+    check(['', 'Not found', 'Content unavailable', 'Unavailable'].includes(await denial.text()));
   }
 }
 
@@ -140,9 +151,21 @@ function minimalProfile(value) {
   }
 }
 
+function currentRound(value, roundId) {
+  keys(value, ['id', 'question', 'options', 'opensAt', 'closesAt', 'isCurrent']);
+  check(value.id === roundId && typeof value.question === 'string' && value.isCurrent === true);
+  check(Number.isFinite(value.opensAt) && (value.closesAt === null || Number.isFinite(value.closesAt)));
+  check(Array.isArray(value.options) && value.options.length > 0);
+  for (const option of value.options) {
+    keys(option, ['id', 'label']);
+    check(typeof option.id === 'string' && typeof option.label === 'string');
+  }
+}
+
 export function lockedToday(value, roundId) {
   keys(value, ['serverNow', 'round', 'viewerReceipt', 'canViewFriends', 'ownOriginal', 'friendPresence']);
-  check(value.round?.id === roundId && value.viewerReceipt === null);
+  check(Number.isFinite(value.serverNow) && value.viewerReceipt === null);
+  currentRound(value.round, roundId);
   check(value.canViewFriends === false && value.ownOriginal === null);
   check(Array.isArray(value.friendPresence));
   for (const presence of value.friendPresence) {
@@ -168,7 +191,8 @@ export async function runProbe(probe, report = () => {}) {
     const count = identity === 'casey' ? 1 : 0;
     await step(`${identity}.same-round-receipt`, async () => {
       const today = await probe.value('query', 'rounds:today', {}, identity);
-      check(today.round?.id === roundId && today.viewerReceipt?.roundId === roundId);
+      currentRound(today.round, roundId);
+      check(today.viewerReceipt?.roundId === roundId);
       check(today.canViewFriends === true);
     });
     await step(`${identity}.original-only-feed`, async () => {
