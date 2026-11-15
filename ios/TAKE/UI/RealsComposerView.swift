@@ -63,6 +63,7 @@ struct RealsComposerView: View {
         }
         .background(TakeTheme.background).foregroundStyle(TakeTheme.white).tint(TakeTheme.white)
         .ignoresSafeArea().preferredColorScheme(.dark)
+        .statusBarHidden().persistentSystemOverlays(.hidden)
         .toolbar(.hidden, for: .navigationBar)
         .interactiveDismissDisabled(publishing || changingTake || capture.state == .recording || capture.state == .exporting)
         .onAppear { active = true }

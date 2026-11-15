@@ -100,9 +100,12 @@ final class RealsMocksTests: XCTestCase {
     }
 
     private func requireHittable(_ element: XCUIElement, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(element.waitForExistence(timeout: timeout), file: file, line: line)
+        let exists = element.waitForExistence(timeout: timeout)
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed, file: file, line: line)
+        let hittable = exists && XCTWaiter.wait(for: [ready], timeout: timeout) == .completed
+        if !hittable { recordFailureState() }
+        XCTAssertTrue(exists, file: file, line: line)
+        XCTAssertTrue(hittable, file: file, line: line)
     }
 
     private func pauseVideo(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
@@ -113,6 +116,15 @@ final class RealsMocksTests: XCTestCase {
         let paused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Paused"), object: player)
         XCTAssertEqual(XCTWaiter.wait(for: [paused], timeout: 8), .completed, file: file, line: line)
         XCTAssertFalse(app.alerts.firstMatch.exists, file: file, line: line)
+    }
+
+    private func recordFailureState() {
+        let app = XCUIApplication()
+        print("REALS_UI_TREE_BEGIN\n\(app.debugDescription)\nREALS_UI_TREE_END")
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "mocks-v2-failure"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func attachScreen(_ number: Int, app: XCUIApplication) {
