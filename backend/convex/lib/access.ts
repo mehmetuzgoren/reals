@@ -1,6 +1,7 @@
 import type { QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { notFound } from "./errors";
+import { availableUser } from "./auth";
 
 export function accessScope() {
   return {
@@ -38,9 +39,9 @@ export async function receipt(ctx: QueryCtx, userId: Id<"users">, roundId: Id<"r
   return ctx.db.query("submissionReceipts").withIndex("by_round_user", q => q.eq("roundId", roundId).eq("userId", userId)).unique();
 }
 export async function canViewOriginal(ctx: QueryCtx, user: Doc<"users">, original: Doc<"originalTakes"> | null, scope = accessScope()) {
-  if (!original || original.deleted || user.status !== "active") return false;
+  if (!original || original.deleted || !availableUser(user)) return false;
   const author = await readUser(ctx, original.authorId, scope);
-  if (!author || author.status !== "active") return false;
+  if (!availableUser(author)) return false;
   if (original.authorId === user._id) return true;
   if (scope.current === undefined) scope.current = await currentRound(ctx);
   if (scope.current?._id !== original.roundId) return false;
@@ -49,11 +50,11 @@ export async function canViewOriginal(ctx: QueryCtx, user: Doc<"users">, origina
   return !!scope.receipts.get(key) && await friends(ctx, user._id, original.authorId, scope);
 }
 export async function canViewReply(ctx: QueryCtx, user: Doc<"users">, reply: Doc<"videoReplies"> | null, scope = accessScope()) {
-  if (!reply || reply.deleted || user.status !== "active") return false;
+  if (!reply || reply.deleted || !availableUser(user)) return false;
   if (!scope.parents.has(reply.originalId)) scope.parents.set(reply.originalId, await ctx.db.get(reply.originalId));
   const parent = scope.parents.get(reply.originalId)!;
   const author = await readUser(ctx, reply.authorId, scope);
-  if (!parent || reply.roundId !== parent.roundId || author?.status !== "active" || !(await canViewOriginal(ctx, user, parent, scope))) return false;
+  if (!parent || reply.roundId !== parent.roundId || !availableUser(author) || !(await canViewOriginal(ctx, user, parent, scope))) return false;
   if (!(await friends(ctx, parent.authorId, reply.authorId, scope))) return false;
   if (user._id === parent.authorId || user._id === reply.authorId) return true;
   return await friends(ctx, user._id, reply.authorId, scope);

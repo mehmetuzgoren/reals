@@ -6,15 +6,14 @@ import { pushMessage } from "../convex/push";
 import { setup, user, round, matrix } from "./helpers";
 
 const sender = vi.hoisted(() => vi.fn());
-vi.mock("firebase-admin/messaging", () => ({ getMessaging: () => ({ send: sender }) }));
-vi.mock("../convex/lib/firebase", () => ({ firebaseApp: () => ({}) }));
+vi.mock("../convex/lib/pushProvider", () => ({ sendPush: sender }));
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); sender.mockReset(); });
 
 async function dailyFanout(t: ReturnType<typeof setup>) {
   for (let owner = 0; owner < 6; owner++) {
     const person = await user(t, `owner${owner}`);
     for (let index = owner * 10; index < Math.min(51, (owner + 1) * 10); index++) {
-      await person.client.mutation(api.devices.register, { installationId: `fanout-installation-${index}`, fcmToken: `test-private-fanout-token-${index}`, platform: "ios", notificationsEnabled: true });
+      await person.client.mutation(api.devices.register, { installationId: `fanout-installation-${index}`, token: `test-private-fanout-token-${index}`, platform: "ios", notificationsEnabled: true });
     }
   }
   await round(t);
@@ -93,8 +92,8 @@ describe("one shared authoritative round", () => {
 
   it.each(["2026-11-16T04:00:00Z", "2026-11-16T07:00:00Z", "2026-11-16T20:00:00Z"])("leaves the current round and pushes untouched by an expired scheduled plan at %s", async now => {
     const t = setup(); const alex = await user(t, "alex");
-    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", fcmToken: "test-private-fcm-token-alex", platform: "ios", notificationsEnabled: true });
-    sender.mockResolvedValue("delivered");
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "test-private-device-token-alex", platform: "ios", notificationsEnabled: true });
+    sender.mockResolvedValue("sent");
     const prior = await round(t);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(sender).toHaveBeenCalledTimes(1); sender.mockClear();
@@ -133,11 +132,135 @@ describe("one shared authoritative round", () => {
 });
 
 describe("authorization-aware generic remote push integration", () => {
+  it("reports the shipped provider as unavailable without performing a network send", async () => {
+    const { sendPush } = await vi.importActual<typeof import("../convex/lib/pushProvider")>("../convex/lib/pushProvider");
+    const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("No transport is installed"));
+    await expect(sendPush({ token: "opaque-device-token", ...pushMessage({ kind: "daily", roundId: "round", contentId: null }) })).resolves.toBe("unavailable");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("bounds retries from the shipped unavailable provider without creating delivery receipts", async () => {
+    const { sendPush } = await vi.importActual<typeof import("../convex/lib/pushProvider")>("../convex/lib/pushProvider");
+    const t = setup(); const alex = await user(t, "alex");
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "opaque-device-token", platform: "ios", notificationsEnabled: true });
+    await round(t);
+    const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
+    sender.mockImplementation(sendPush);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(sender).toHaveBeenCalledTimes(5);
+    expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "unavailable", attempts: 5, cursor: null, leaseUntil: 0 });
+    expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toEqual([]);
+    expect(await t.run(ctx => ctx.db.query("deviceTokens").first())).toMatchObject({ token: "opaque-device-token" });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toBeNull();
+    await t.action(internal.push.deliver, { jobId: job._id });
+    expect(sender).toHaveBeenCalledTimes(5);
+  });
+
+  it("stores bounded opaque tokens without assuming an APNs token length or format", async () => {
+    const t = setup(); const alex = await user(t, "alex");
+    for (const token of ["x", "CaseSensitive/+opaque=_-:9", "T".repeat(4096)]) {
+      await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token, platform: "ios", notificationsEnabled: true });
+      expect(await t.run(ctx => ctx.db.query("deviceTokens").first())).toMatchObject({ token });
+    }
+    for (const token of ["", "T".repeat(4097)]) {
+      await expect(alex.client.mutation(api.devices.register, { installationId: "alex-installation", token, platform: "ios", notificationsEnabled: true })).rejects.toThrow("INVALID_ARGUMENT");
+    }
+    expect(await t.run(ctx => ctx.db.query("deviceTokens").collect())).toHaveLength(1);
+  });
+
+  it("leases an empty worker batch and completes an empty scheduled delivery without a provider call", async () => {
+    const t = setup(); await round(t);
+    const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
+    const claimed = (await t.action(internal.push.claimForWorker, { jobId: job._id }))!;
+    expect(claimed).toEqual({ lease: expect.any(String), items: [], nextCursor: null, done: true });
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toBeNull();
+    const inFlight = (await t.run(ctx => ctx.db.get(job._id)))!;
+    vi.setSystemTime(inFlight.leaseUntil! + 1);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "sent", attempts: 0 });
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toBeNull();
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("claims a token-free worker batch and fences stale leases, preferences, permission and receipts", async () => {
+    const t = setup(); const alex = await user(t, "alex"); const blair = await user(t, "blair");
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "alex-private-device-token", platform: "ios", notificationsEnabled: true });
+    await alex.client.mutation(api.devices.register, { installationId: "disabled-installation", token: "disabled-private-device-token", platform: "ios", notificationsEnabled: false });
+    await blair.client.mutation(api.devices.register, { installationId: "blair-installation", token: "blair-private-device-token", platform: "ios", notificationsEnabled: true });
+    await blair.client.mutation(api.profiles.setNotifications, { dailyQuestion: false, directReply: true });
+    await round(t);
+    const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
+    const device = (await t.run(ctx => ctx.db.query("deviceTokens").withIndex("by_owner_installation", q => q.eq("userId", alex.profile.id).eq("installationId", "alex-installation")).unique()))!;
+    const first = (await t.action(internal.push.claimForWorker, { jobId: job._id }))!;
+    expect(first).toEqual({ lease: expect.any(String), items: [{ id: device._id }], nextCursor: null, done: true });
+    expect(first.lease.length).toBeGreaterThan(0);
+    expect(JSON.stringify(first)).not.toContain("private-device-token");
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toBeNull();
+    const inFlight = (await t.run(ctx => ctx.db.get(job._id)))!;
+    vi.setSystemTime(inFlight.leaseUntil! + 1);
+    const second = (await t.action(internal.push.claimForWorker, { jobId: job._id }))!;
+    expect(second.lease).not.toBe(first.lease);
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: first.lease })).toEqual({ lostLease: true, target: null });
+    expect(await t.mutation(internal.notifications.finishAttempt, { jobId: job._id, deviceId: device._id, lease: first.lease, token: device.token, outcome: "sent" })).toEqual({ validLease: false, retry: false });
+    await t.mutation(internal.notifications.progress, { jobId: job._id, lease: first.lease, nextCursor: null, done: true, unavailable: false });
+    expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "pending", attempts: 2, lease: second.lease });
+    await alex.client.mutation(api.profiles.setNotifications, { dailyQuestion: false, directReply: true });
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: second.lease })).toEqual({ lostLease: false, target: null });
+    await alex.client.mutation(api.profiles.setNotifications, { dailyQuestion: true, directReply: true });
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: device.token, platform: "ios", notificationsEnabled: false });
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: second.lease })).toEqual({ lostLease: false, target: null });
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: device.token, platform: "ios", notificationsEnabled: true });
+    await t.run(ctx => ctx.db.patch(alex.profile.id, { status: "disabled" }));
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: second.lease })).toEqual({ lostLease: false, target: null });
+    await t.run(ctx => ctx.db.patch(alex.profile.id, { status: "active" }));
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: second.lease })).toEqual({ lostLease: false, target: { token: device.token, kind: "daily", roundId: job.roundId, contentId: null } });
+    expect(await t.mutation(internal.notifications.finishAttempt, { jobId: job._id, deviceId: device._id, lease: second.lease, token: device.token, outcome: "sent" })).toEqual({ validLease: true, retry: false });
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: second.lease })).toEqual({ lostLease: false, target: null });
+    expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toHaveLength(1);
+    await t.mutation(internal.notifications.progress, { jobId: job._id, lease: second.lease, nextCursor: second.nextCursor, done: second.done, unavailable: false });
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toBeNull();
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("restricts worker reply batches to the recipient and rechecks the reply friendship intersection", async () => {
+    const t = setup(); const m = await matrix(t);
+    for (const [name, person] of [["alex", m.alex], ["blair", m.blair]] as const) {
+      await person.client.mutation(api.devices.register, { installationId: `${name}-installation`, token: `${name}-private-device-token`, platform: "ios", notificationsEnabled: true });
+    }
+    const job = (await t.run(ctx => ctx.db.query("notificationJobs").collect())).find(job => job.kind === "reply")!;
+    const claimed = (await t.action(internal.push.claimForWorker, { jobId: job._id }))!;
+    const device = (await t.run(ctx => ctx.db.query("deviceTokens").withIndex("by_user", q => q.eq("userId", m.alex.profile.id)).unique()))!;
+    expect(claimed.items).toEqual([{ id: device._id }]);
+    expect((await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: claimed.lease })).target).toMatchObject({ token: device.token, kind: "reply", contentId: job.replyId });
+    await m.alex.client.mutation(api.blocks.set, { userId: m.blair.profile.id, blocked: true });
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: device._id, lease: claimed.lease })).toEqual({ lostLease: false, target: null });
+    expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toEqual([]);
+    expect(sender).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the current round after a worker claim and returns no old-round targets on takeover", async () => {
+    const t = setup(); const alex = await user(t, "alex");
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "alex-private-device-token", platform: "ios", notificationsEnabled: true });
+    await round(t);
+    const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
+    const claimed = (await t.action(internal.push.claimForWorker, { jobId: job._id }))!;
+    expect(claimed.items).toHaveLength(1);
+    vi.setSystemTime(Date.now() + 1000);
+    await round(t, "worker-successor");
+    expect(await t.mutation(internal.notifications.target, { jobId: job._id, deviceId: claimed.items[0].id, lease: claimed.lease })).toEqual({ lostLease: false, target: null });
+    const inFlight = (await t.run(ctx => ctx.db.get(job._id)))!;
+    vi.setSystemTime(inFlight.leaseUntil! + 1);
+    expect(await t.action(internal.push.claimForWorker, { jobId: job._id })).toEqual({ lease: expect.any(String), items: [], nextCursor: null, done: true });
+    expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toEqual([]);
+    expect(sender).not.toHaveBeenCalled();
+  });
+
   it("retires a malformed page-one token and sends all 50 other eligible devices across six owners", async () => {
     const t = setup(); const { job, devices } = await dailyFanout(t);
     sender.mockImplementation(async ({ token }) => {
-      if (token === devices[0].fcmToken) throw Object.assign(new Error("malformed test token"), { code: "messaging/invalid-argument" });
-      return "delivered";
+      if (token === devices[0].token) return "invalid-token";
+      return "sent";
     });
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(sender).toHaveBeenCalledTimes(50);
@@ -146,8 +269,8 @@ describe("authorization-aware generic remote push integration", () => {
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "pending", attempts: 0 });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     expect(sender).toHaveBeenCalledTimes(51);
-    expect(sender.mock.calls.filter(call => call[0].token === devices[0].fcmToken)).toHaveLength(1);
-    expect(sender.mock.calls.filter(call => call[0].token === devices[50].fcmToken)).toHaveLength(1);
+    expect(sender.mock.calls.filter(call => call[0].token === devices[0].token)).toHaveLength(1);
+    expect(sender.mock.calls.filter(call => call[0].token === devices[50].token)).toHaveLength(1);
     expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toHaveLength(50);
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "sent", attempts: 0 });
   });
@@ -156,8 +279,8 @@ describe("authorization-aware generic remote push integration", () => {
     const t = setup(); const { job, devices } = await dailyFanout(t);
     const first = (await t.query(internal.notifications.batch, { jobId: job._id }))!;
     sender.mockImplementation(async ({ token }) => {
-      if (token === devices[0].fcmToken) throw Object.assign(new Error("temporary test service outage"), { code: "messaging/server-unavailable" });
-      return "delivered";
+      if (token === devices[0].token) return "unavailable";
+      return "sent";
     });
     for (let attempt = 0; attempt < 4; attempt++) await t.action(internal.push.deliver, { jobId: job._id });
     const scheduledBeforeFifth = await t.run(ctx => ctx.db.system.query("_scheduled_functions").collect());
@@ -171,8 +294,8 @@ describe("authorization-aware generic remote push integration", () => {
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "pending", attempts: 0, cursor: first.nextCursor });
     expect(sender).toHaveBeenCalledTimes(54);
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect(sender.mock.calls.filter(call => call[0].token === devices[0].fcmToken)).toHaveLength(5);
-    for (const device of devices.slice(1)) expect(sender.mock.calls.filter(call => call[0].token === device.fcmToken)).toHaveLength(1);
+    expect(sender.mock.calls.filter(call => call[0].token === devices[0].token)).toHaveLength(5);
+    for (const device of devices.slice(1)) expect(sender.mock.calls.filter(call => call[0].token === device.token)).toHaveLength(1);
     expect(await t.run(ctx => ctx.db.get(devices[0]._id))).not.toBeNull();
     expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toHaveLength(50);
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "sent", attempts: 0 });
@@ -182,8 +305,8 @@ describe("authorization-aware generic remote push integration", () => {
     const t = setup(); const { job, devices } = await dailyFanout(t);
     const first = (await t.query(internal.notifications.batch, { jobId: job._id }))!;
     sender.mockImplementation(async ({ token }) => {
-      if (token === devices[0].fcmToken) throw new Error("temporary test outage");
-      return "delivered";
+      if (token === devices[0].token) throw new Error("temporary test outage");
+      return "sent";
     });
     for (let attempt = 0; attempt < 4; attempt++) await t.action(internal.push.deliver, { jobId: job._id });
     expect(await t.mutation(internal.notifications.claim, { jobId: job._id, lease: "crashed-fifth-claim" })).toBe(true);
@@ -196,15 +319,15 @@ describe("authorization-aware generic remote push integration", () => {
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "pending", attempts: 0, cursor: first.nextCursor });
     await t.finishAllScheduledFunctions(vi.runAllTimers);
-    expect(sender.mock.calls.filter(call => call[0].token === devices[0].fcmToken)).toHaveLength(4);
-    expect(sender.mock.calls.filter(call => call[0].token === devices[50].fcmToken)).toHaveLength(1);
+    expect(sender.mock.calls.filter(call => call[0].token === devices[0].token)).toHaveLength(4);
+    expect(sender.mock.calls.filter(call => call[0].token === devices[50].token)).toHaveLength(1);
     expect(await t.run(ctx => ctx.db.query("notificationDeliveries").collect())).toHaveLength(50);
     expect(await t.run(ctx => ctx.db.get(job._id))).toMatchObject({ state: "sent", attempts: 0 });
   });
 
   it("leaves an exhausted final page terminal and unavailable rather than claiming success", async () => {
     const t = setup(); const alex = await user(t, "alex");
-    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", fcmToken: "test-private-fcm-token-alex", platform: "ios", notificationsEnabled: true });
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "test-private-device-token-alex", platform: "ios", notificationsEnabled: true });
     await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
     sender.mockRejectedValue(new Error("temporary test outage"));
@@ -219,7 +342,7 @@ describe("authorization-aware generic remote push integration", () => {
 
   it("recovers an interrupted retry and counts crashed attempts within the retry bound", async () => {
     const t = setup(); const alex = await user(t, "alex");
-    await alex.client.mutation(api.devices.register, { installationId: "installation-one", fcmToken: "test-private-fcm-token-one", platform: "ios", notificationsEnabled: true });
+    await alex.client.mutation(api.devices.register, { installationId: "installation-one", token: "test-private-device-token-one", platform: "ios", notificationsEnabled: true });
     await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
     sender.mockRejectedValue(new Error("temporary test outage"));
@@ -235,13 +358,13 @@ describe("authorization-aware generic remote push integration", () => {
 
   it("fences a stale worker before it can start another send after lease takeover", async () => {
     const t = setup(); const alex = await user(t, "alex");
-    for (const suffix of ["one", "two"]) await alex.client.mutation(api.devices.register, { installationId: `installation-${suffix}`, fcmToken: `test-private-fcm-token-${suffix}`, platform: "ios", notificationsEnabled: true });
+    for (const suffix of ["one", "two"]) await alex.client.mutation(api.devices.register, { installationId: `installation-${suffix}`, token: `test-private-device-token-${suffix}`, platform: "ios", notificationsEnabled: true });
     await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
     let release!: () => void; let started!: () => void;
     const paused = new Promise<void>(resolve => { release = resolve; });
     const began = new Promise<void>(resolve => { started = resolve; });
-    sender.mockImplementationOnce(async () => { started(); await paused; return "already-in-flight"; }).mockResolvedValue("takeover-delivery");
+    sender.mockImplementationOnce(async () => { started(); await paused; return "sent"; }).mockResolvedValue("sent");
     const stale = t.action(internal.push.deliver, { jobId: job._id });
     await began;
     const inFlight = (await t.run(ctx => ctx.db.get(job._id)))!;
@@ -249,45 +372,45 @@ describe("authorization-aware generic remote push integration", () => {
     await t.action(internal.push.deliver, { jobId: job._id });
     release(); await stale;
     expect(sender).toHaveBeenCalledTimes(3);
-    expect(sender.mock.calls.map(call => call[0].token)).toEqual(["test-private-fcm-token-one", "test-private-fcm-token-one", "test-private-fcm-token-two"]);
+    expect(sender.mock.calls.map(call => call[0].token)).toEqual(["test-private-device-token-one", "test-private-device-token-one", "test-private-device-token-two"]);
     expect((await t.run(ctx => ctx.db.query("notificationDeliveries").collect()))).toHaveLength(2);
   });
   it("retries a failed device without resending successfully persisted targets", async () => {
     const t = setup(); const alex = await user(t, "alex");
-    for (const token of ["one", "two"]) await alex.client.mutation(api.devices.register, { installationId: `installation-${token}`, fcmToken: `test-private-fcm-token-${token}`, platform: "ios", notificationsEnabled: true });
+    for (const token of ["one", "two"]) await alex.client.mutation(api.devices.register, { installationId: `installation-${token}`, token: `test-private-device-token-${token}`, platform: "ios", notificationsEnabled: true });
     await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
-    sender.mockResolvedValueOnce("delivered").mockRejectedValueOnce(new Error("temporary test outage"));
+    sender.mockResolvedValueOnce("sent").mockRejectedValueOnce(new Error("temporary test outage"));
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(sender).toHaveBeenCalledTimes(2);
-    sender.mockResolvedValue("delivered on retry");
+    sender.mockResolvedValue("sent");
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(sender).toHaveBeenCalledTimes(3);
-    expect(sender.mock.calls.map(call => call[0].token)).toEqual(["test-private-fcm-token-one", "test-private-fcm-token-two", "test-private-fcm-token-two"]);
+    expect(sender.mock.calls.map(call => call[0].token)).toEqual(["test-private-device-token-one", "test-private-device-token-two", "test-private-device-token-two"]);
     expect((await t.run(ctx => ctx.db.query("notificationDeliveries").collect()))).toHaveLength(2);
   });
   it("opens before notification, honors preferences/permission, and sends only generic identifiers", async () => {
     const t = setup(); const alex = await user(t, "alex"); const blair = await user(t, "blair");
-    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", fcmToken: "alex-private-fcm-token-12345", platform: "ios", notificationsEnabled: true });
-    await blair.client.mutation(api.devices.register, { installationId: "blair-installation", fcmToken: "blair-private-fcm-token-12345", platform: "ios", notificationsEnabled: true });
+    await alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "alex-private-device-token-12345", platform: "ios", notificationsEnabled: true });
+    await blair.client.mutation(api.devices.register, { installationId: "blair-installation", token: "blair-private-device-token-12345", platform: "ios", notificationsEnabled: true });
     await blair.client.mutation(api.profiles.setNotifications, { dailyQuestion: false, directReply: true });
     const id = await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
     sender.mockImplementation(async () => {
       expect((await alex.client.query(api.rounds.today, {})).round?.id).toBe(id);
-      return "mock-fcm-message-id";
+      return "sent";
     });
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(sender).toHaveBeenCalledTimes(1);
     const payload = sender.mock.calls[0][0];
-    expect(payload).toMatchObject({ token: "alex-private-fcm-token-12345", notification: { body: "A new question is ready. Give your take." }, data: { type: "daily", roundId: id } });
+    expect(payload).toMatchObject({ token: "alex-private-device-token-12345", notification: { body: "A new question is ready. Give your take." }, data: { type: "daily", roundId: id } });
     expect(JSON.stringify(payload)).not.toMatch(/optionId|caption|thumbnail|author|username/);
     expect(await alex.client.query(api.friends.list, {})).not.toHaveProperty("tokens");
   });
 
   it("rechecks direct-reply eligibility at send time and retires invalid tokens without leaking them", async () => {
     const t = setup(); const m = await matrix(t);
-    await m.alex.client.mutation(api.devices.register, { installationId: "alex-installation", fcmToken: "test-private-token-for-alex-123", platform: "ios", notificationsEnabled: true });
+    await m.alex.client.mutation(api.devices.register, { installationId: "alex-installation", token: "test-private-token-for-alex-123", platform: "ios", notificationsEnabled: true });
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").collect())).find(job => job.kind === "reply")!;
     const batch = await t.query(internal.notifications.batch, { jobId: job._id });
     expect(batch?.items).toHaveLength(1);
@@ -298,7 +421,7 @@ describe("authorization-aware generic remote push integration", () => {
     await t.action(internal.push.deliver, { jobId: job._id });
     expect(sender).not.toHaveBeenCalled();
     const daily = (await t.run(ctx => ctx.db.query("notificationJobs").collect())).find(job => job.kind === "daily")!;
-    sender.mockRejectedValue(Object.assign(new Error("mock invalid token"), { code: "messaging/registration-token-not-registered" }));
+    sender.mockResolvedValue("invalid-token");
     await t.action(internal.push.deliver, { jobId: daily._id });
     expect(await t.run(ctx => ctx.db.query("deviceTokens").collect())).toEqual([]);
     expect(pushMessage({ kind: "reply", roundId: "round", contentId: "reply" })).toMatchObject({ notification: { body: "You have a new video reply." }, data: { type: "reply", roundId: "round", contentId: "reply" } });
@@ -306,15 +429,15 @@ describe("authorization-aware generic remote push integration", () => {
 
   it("never unregisters someone else's installation and preserves refreshed tokens when a stale send fails", async () => {
     const t = setup(); const alex = await user(t, "alex"); const blair = await user(t, "blair");
-    await alex.client.mutation(api.devices.register, { installationId: "same-installation", fcmToken: "old-private-fcm-token-123456", platform: "ios", notificationsEnabled: true });
+    await alex.client.mutation(api.devices.register, { installationId: "same-installation", token: "old-private-device-token-123456", platform: "ios", notificationsEnabled: true });
     await blair.client.mutation(api.devices.unregister, { installationId: "same-installation" });
     const row = (await t.run(ctx => ctx.db.query("deviceTokens").first()))!;
     await round(t);
     const job = (await t.run(ctx => ctx.db.query("notificationJobs").first()))!;
     await t.mutation(internal.notifications.claim, { jobId: job._id, lease: "refresh-test-lease" });
-    await alex.client.mutation(api.devices.register, { installationId: "same-installation", fcmToken: "new-private-fcm-token-123456", platform: "ios", notificationsEnabled: true });
-    expect(await t.mutation(internal.notifications.finishAttempt, { jobId: job._id, deviceId: row._id, lease: "refresh-test-lease", token: row.fcmToken, outcome: "invalid" })).toEqual({ validLease: true, retry: true });
-    expect((await t.run(ctx => ctx.db.query("deviceTokens").first()))?.fcmToken).toBe("new-private-fcm-token-123456");
+    await alex.client.mutation(api.devices.register, { installationId: "same-installation", token: "new-private-device-token-123456", platform: "ios", notificationsEnabled: true });
+    expect(await t.mutation(internal.notifications.finishAttempt, { jobId: job._id, deviceId: row._id, lease: "refresh-test-lease", token: row.token, outcome: "invalid-token" })).toEqual({ validLease: true, retry: true });
+    expect((await t.run(ctx => ctx.db.query("deviceTokens").first()))?.token).toBe("new-private-device-token-123456");
     await alex.client.mutation(api.devices.unregister, { installationId: "same-installation" });
     expect(await t.run(ctx => ctx.db.query("deviceTokens").collect())).toEqual([]);
   });

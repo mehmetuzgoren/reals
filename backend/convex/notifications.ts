@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { availableUser } from "./lib/auth";
 import { internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { canViewReply, currentRound } from "./lib/access";
@@ -32,7 +33,7 @@ export const batch = internalQuery({ args: { jobId: v.id("notificationJobs") }, 
   const items = [];
   for (const device of page.page) {
     const user = await ctx.db.get(device.userId);
-    if (!device.notificationsEnabled || user?.status !== "active") continue;
+    if (!device.notificationsEnabled || !availableUser(user)) continue;
     if (job.kind === "daily" && !user.preferences.dailyQuestion) continue;
     if (job.kind === "reply") {
       const reply = job.replyId ? await ctx.db.get(job.replyId) : null;
@@ -50,21 +51,22 @@ export const target = internalMutation({ args: { jobId: v.id("notificationJobs")
   const skip = { lostLease: false, target: null };
   if (!device || !device.notificationsEnabled || (await currentRound(ctx))?._id !== job.roundId) return skip;
   const user = await ctx.db.get(device.userId);
-  if (user?.status !== "active") return skip;
+  if (!availableUser(user)) return skip;
   if (await ctx.db.query("notificationDeliveries").withIndex("by_job_device", q => q.eq("jobId", job._id).eq("deviceId", device._id)).unique()) return skip;
   if (job.kind === "daily" && !user.preferences.dailyQuestion) return skip;
   if (job.kind === "reply") {
     if (job.recipientId !== user._id || !user.preferences.directReply || !job.replyId || !(await canViewReply(ctx, user, await ctx.db.get(job.replyId)))) return skip;
   }
-  return { lostLease: false, target: { token: device.fcmToken, kind: job.kind, roundId: job.roundId, contentId: job.kind === "reply" ? job.replyId : null } };
+  return { lostLease: false, target: { token: device.token, kind: job.kind, roundId: job.roundId, contentId: job.kind === "reply" ? job.replyId : null } };
 } });
-export const finishAttempt = internalMutation({ args: { jobId: v.id("notificationJobs"), deviceId: v.id("deviceTokens"), lease: v.string(), token: v.string(), outcome: v.union(v.literal("sent"), v.literal("invalid")) }, handler: async (ctx, args) => {
+export const finishAttempt = internalMutation({ args: { jobId: v.id("notificationJobs"), deviceId: v.id("deviceTokens"), lease: v.string(), token: v.string(), outcome: v.union(v.literal("sent"), v.literal("invalid-token"), v.literal("unavailable")) }, handler: async (ctx, args) => {
   const job = await ctx.db.get(args.jobId);
   if (!job || job.state !== "pending" || job.lease !== args.lease || (job.leaseUntil ?? 0) <= Date.now()) return { validLease: false, retry: false };
   const device = await ctx.db.get(args.deviceId);
   if (!device) return { validLease: true, retry: false };
-  if (args.outcome === "invalid") {
-    if (device.fcmToken !== args.token) return { validLease: true, retry: true };
+  if (args.outcome === "unavailable") return { validLease: true, retry: true };
+  if (args.outcome === "invalid-token") {
+    if (device.token !== args.token) return { validLease: true, retry: true };
     await ctx.db.delete(device._id);
     return { validLease: true, retry: false };
   }

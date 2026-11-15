@@ -123,6 +123,6 @@ export const account = internalMutation({ args: { jobId: v.id("deletionJobs") },
   if (more) await ctx.scheduler.runAfter(100, internal.cleanup.account, args);
   else {
     await ctx.db.patch(user._id, { status: "deleted" });
-    await ctx.db.patch(job._id, { state: job.firebaseState === "deleted" ? "complete" : "data_deleted" });
+    await ctx.db.patch(job._id, { state: "complete" });
   }
 } });

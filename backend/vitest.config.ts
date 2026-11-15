@@ -1,6 +1,7 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, mergeConfig } from "vitest/config";
+import shared from "./vitest.shared.ts";
 
-export default defineConfig({
+export default mergeConfig(shared, defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
@@ -8,4 +9,4 @@ export default defineConfig({
     testTimeout: 20000,
     restoreMocks: true,
   },
-});
+}));

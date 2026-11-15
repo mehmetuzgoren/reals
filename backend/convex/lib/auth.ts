@@ -1,19 +1,30 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
+import type { Doc } from "../_generated/dataModel";
 import { fail } from "./errors";
 
-export async function identity(ctx: Pick<QueryCtx, "auth">) {
+export function availableUser(user: Doc<"users"> | null): user is Doc<"users"> {
+  return !!user && user.status === "active" && (user.authMethod === "apple" || process.env.TAKE_DEPLOYMENT_ENV === "development");
+}
+export async function identity(ctx: Pick<QueryCtx, "auth" | "runQuery">) {
   const value = await ctx.auth.getUserIdentity();
-  const project = process.env.FIREBASE_PROJECT_ID;
-  if (!project || !value || value.issuer !== `https://securetoken.google.com/${project}` || !value.subject || value.subject.length > 128) {
+  const cloud = process.env.CONVEX_CLOUD_URL;
+  if (!cloud || !value || value.issuer !== `${cloud}/components/auth` || !value.subject) {
     fail("UNAUTHENTICATED", "Sign in with Apple to continue");
   }
-  return value;
+  const userId = await getAuthUserId(ctx);
+  if (!userId) fail("UNAUTHENTICATED", "This session is unavailable");
+  return { userId, sessionId: value.subject };
+}
+export async function authenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const auth = await identity(ctx);
+  const user = await ctx.db.get(auth.userId);
+  if (!availableUser(user)) fail("UNAUTHENTICATED", "This account is unavailable");
+  return user;
 }
 export async function optionalViewer(ctx: QueryCtx | MutationCtx) {
-  const auth = await identity(ctx);
-  const user = await ctx.db.query("users").withIndex("by_identity", q => q.eq("issuer", auth.issuer).eq("subject", auth.subject)).unique();
-  if (user && user.status !== "active") fail("UNAUTHENTICATED", "This account is unavailable");
-  return user;
+  const user = await authenticatedUser(ctx);
+  return user.username === null ? null : user;
 }
 export async function viewer(ctx: QueryCtx | MutationCtx) {
   const user = await optionalViewer(ctx);

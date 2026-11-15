@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, internal } from "../convex/_generated/api";
-import { actor, setup, user, round, publish, path, playback, befriend } from "./helpers";
+import { actor, setup, user, round, publish, path, playback, befriend, sessionClient, testPassword } from "./helpers";
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -18,13 +18,13 @@ describe("identity-derived social and profile APIs", () => {
   it("requires verified identity, normalizes unique usernames transactionally and never accepts a viewer ID", async () => {
     const t = setup();
     await expect(t.query(api.viewer.session, {})).rejects.toThrow("UNAUTHENTICATED");
-    await expect(actor(t, "wrong", { issuer: "https://securetoken.google.com/other" }).query(api.viewer.session, {})).rejects.toThrow("UNAUTHENTICATED");
-    const a = actor(t, "apple-uid-one"); const b = actor(t, "apple-uid-two");
+    await expect((await actor(t, "wrong", { issuer: "https://foreign.convex.cloud/components/auth" })).query(api.viewer.session, {})).rejects.toThrow("UNAUTHENTICATED");
+    const a = await actor(t, "apple-uid-one"); const b = await actor(t, "apple-uid-two");
     expect(await a.query(api.viewer.session, {})).toEqual({ profile: null, needsOnboarding: true });
     const results = await Promise.allSettled([a, b].map(client => client.mutation(api.profiles.completeOnboarding, { username: "  ALEx ", displayName: "Alex" })));
     expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
     expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
-    const profile = await t.run(ctx => ctx.db.query("users").first());
+    const profile = await t.run(ctx => ctx.db.query("users").withIndex("by_username", q => q.eq("username", "alex")).unique());
     expect(profile?.username).toBe("alex");
     await expect(a.query(api.viewer.session, { userId: profile!._id } as never)).rejects.toThrow();
   });
@@ -82,20 +82,25 @@ describe("identity-derived social and profile APIs", () => {
     const alex = await user(t, "alex"); const blair = await user(t, "blair");
     await befriend(alex.client, alex.profile.id, blair.client, blair.profile.id);
     const id = await round(t); const original = await publish(alex.client, id);
-    const grant = await playback(alex.client, original.originalId, "original");
-    await alex.client.mutation(api.devices.register, { installationId: "test-installation-1", fcmToken: "test-not-a-real-fcm-token-123456", platform: "ios", notificationsEnabled: true });
-    await expect(actor(t, "alex", { auth_time: Date.now() / 1000 - 301 }).action(api.accounts.requestDeletion, {})).rejects.toThrow("REAUTH_REQUIRED");
-    const deleted = await alex.client.action(api.accounts.requestDeletion, {});
+    await alex.client.mutation(api.devices.register, { installationId: "test-installation-1", token: "test-not-a-real-device-token-123456", platform: "ios", notificationsEnabled: true });
+    vi.setSystemTime(Date.now() + 301000);
+    await expect(alex.client.action(api.accounts.requestDeletion, {})).rejects.toThrow("REAUTH_REQUIRED");
+    const signedIn = await t.mutation(api.auth.signInWithUsernamePassword, { username: "alex", password: testPassword });
+    if (signedIn.status !== "complete") throw new Error("Reauthentication failed");
+    const fresh = sessionClient(t, signedIn.tokens);
+    const grant = await playback(fresh, original.originalId, "original");
+    expect((await t.fetch(path(grant.url))).status).toBe(200);
+    const deleted = await fresh.action(api.accounts.requestDeletion, {});
     expect(deleted.state).toBe("pending");
     expect((await t.fetch(path(grant.url))).status).toBe(404);
     await expect(alex.client.query(api.viewer.session, {})).rejects.toThrow("UNAUTHENTICATED");
     await expect(alex.client.mutation(api.profiles.completeOnboarding, { username: "resurrected", displayName: "Resurrected" })).rejects.toThrow("UNAUTHENTICATED");
     await t.finishAllScheduledFunctions(vi.runAllTimers);
     const data = await t.run(async ctx => ({ user: await ctx.db.get(alex.profile.id), friends: await ctx.db.query("friendships").collect(), originals: await ctx.db.query("originalTakes").collect(), devices: await ctx.db.query("deviceTokens").collect(), jobs: await ctx.db.query("deletionJobs").collect() }));
-    expect(data.user).toMatchObject({ status: "deleted", displayName: "Deleted account", username: null, subject: "alex" });
+    expect(data.user).toMatchObject({ status: "deleted", displayName: "Deleted account", username: null, authMethod: "developmentPassword" });
     expect(data.friends).toEqual([]); expect(data.originals).toEqual([]); expect(data.devices).toEqual([]);
-    expect(data.jobs[0]).toMatchObject({ state: "data_deleted", firebaseState: "unconfigured" });
-    await expect(actor(t, "alex").mutation(api.profiles.completeOnboarding, { username: "alexagain", displayName: "Alex" })).rejects.toThrow("UNAUTHENTICATED");
+    expect(data.jobs[0]).toMatchObject({ state: "complete" });
+    await expect((await actor(t, "alex")).mutation(api.profiles.completeOnboarding, { username: "alexagain", displayName: "Alex" })).rejects.toThrow("UNAUTHENTICATED");
     expect((await blair.client.query(api.friends.list, {})).approved).toEqual([]);
   });
 });

@@ -1,13 +1,13 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { viewer } from "./lib/auth";
+import { availableUser, viewer } from "./lib/auth";
 import { fail, notFound } from "./lib/errors";
 import { removePair } from "./friends";
 
 export const set = mutation({ args: { userId: v.id("users"), blocked: v.boolean() }, handler: async (ctx, args) => {
   const user = await viewer(ctx);
   const other = await ctx.db.get(args.userId);
-  if (!other || other.status !== "active" || other._id === user._id) return notFound();
+  if (!availableUser(other) || other._id === user._id) return notFound();
   const block = await ctx.db.query("blocks").withIndex("by_pair", q => q.eq("blockerId", user._id).eq("blockedId", other._id)).unique();
   if (args.blocked) {
     if (!block) {

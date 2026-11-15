@@ -8,6 +8,21 @@ import { randomToken, sha256, verifyAvatar } from "./lib/verification";
 import { MAX_BYTES } from "./uploads";
 
 const http = httpRouter();
+http.route({ path: "/auth/ios", method: "GET", handler: httpAction(async (_ctx, request) => {
+  const params = new URL(request.url).searchParams;
+  const state = params.get("state");
+  const code = params.get("convexAuthCode");
+  const error = params.get("convexAuthError");
+  const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
+  const opaque = /^[A-Za-z0-9_-]{43}$/;
+  if (params.getAll("state").length !== 1 || !state || !opaque.test(state) || params.getAll("convexAuthCode").length > 1 || params.getAll("convexAuthError").length > 1 || (code !== null) === (error !== null) || (code !== null && !opaque.test(code)) || (error !== null && !["access_denied", "expired", "oauth_error"].includes(error))) {
+    return new Response("Invalid authentication callback", { status: 400, headers });
+  }
+  const target = new URL("take://auth/convex");
+  target.searchParams.set("state", state);
+  target.searchParams.set(code !== null ? "code" : "error", code ?? error!);
+  return new Response(null, { status: 302, headers: { ...headers, Location: target.toString() } });
+}) });
 const upload = httpAction(async (ctx, request) => {
   let storageId = null;
   let bound = false;

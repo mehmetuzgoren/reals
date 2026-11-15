@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { viewer } from "./lib/auth";
+import { availableUser, viewer } from "./lib/auth";
 import { blocked, friends, pairKey } from "./lib/access";
 import { bounded, fail, notFound } from "./lib/errors";
 import { pageLimit, publicProfile } from "./lib/dto";
@@ -26,22 +26,22 @@ export const list = query({ args: {}, handler: async ctx => {
   const approved = [];
   for (const edge of await friendEdges(ctx, user._id)) {
     const other = await ctx.db.get(edge.lowId === user._id ? edge.highId : edge.lowId);
-    if (other?.status === "active" && await friends(ctx, user._id, other._id)) approved.push(publicProfile(other));
+    if (availableUser(other) && await friends(ctx, user._id, other._id)) approved.push(publicProfile(other));
   }
   const incoming = [];
   const outgoing = [];
   for (const request of await ctx.db.query("friendRequests").withIndex("by_recipient", q => q.eq("recipientId", user._id)).collect()) {
     const other = await ctx.db.get(request.senderId);
-    if (other?.status === "active" && !(await blocked(ctx, user._id, other._id))) incoming.push({ id: request._id, profile: publicProfile(other), createdAt: request.createdAt });
+    if (availableUser(other) && !(await blocked(ctx, user._id, other._id))) incoming.push({ id: request._id, profile: publicProfile(other), createdAt: request.createdAt });
   }
   for (const request of await ctx.db.query("friendRequests").withIndex("by_sender", q => q.eq("senderId", user._id)).collect()) {
     const other = await ctx.db.get(request.recipientId);
-    if (other?.status === "active" && !(await blocked(ctx, user._id, other._id))) outgoing.push({ id: request._id, profile: publicProfile(other), createdAt: request.createdAt });
+    if (availableUser(other) && !(await blocked(ctx, user._id, other._id))) outgoing.push({ id: request._id, profile: publicProfile(other), createdAt: request.createdAt });
   }
   const ownBlocks = [];
   for (const block of await ctx.db.query("blocks").withIndex("by_blocker", q => q.eq("blockerId", user._id)).collect()) {
     const other = await ctx.db.get(block.blockedId);
-    if (other?.status === "active") ownBlocks.push(publicProfile(other));
+    if (availableUser(other)) ownBlocks.push(publicProfile(other));
   }
   return { approved, incoming, outgoing, blocked: ownBlocks };
 } });
@@ -53,7 +53,7 @@ export const search = query({ args: { usernamePrefix: v.string(), limit: v.numbe
   const users = await ctx.db.query("users").withIndex("by_username", q => q.gte("username", prefix).lt("username", prefix + "\uffff")).take(pageLimit(args.limit));
   const result = [];
   for (const other of users) {
-    if (other.status !== "active" || other._id === user._id || await blocked(ctx, user._id, other._id)) continue;
+    if (!availableUser(other) || other._id === user._id || await blocked(ctx, user._id, other._id)) continue;
     const pending = await ctx.db.query("friendRequests").withIndex("by_pair", q => q.eq("pair", pairKey(user._id, other._id))).unique();
     const relationship = await friends(ctx, user._id, other._id) ? "approved" : pending ? (pending.senderId === user._id ? "outgoing" : "incoming") : "none";
     result.push({ profile: publicProfile(other), relationship, requestId: pending?._id ?? null });
@@ -64,7 +64,7 @@ export const search = query({ args: { usernamePrefix: v.string(), limit: v.numbe
 export const request = mutation({ args: { userId: v.id("users") }, handler: async (ctx, args) => {
   const user = await viewer(ctx);
   const other = await ctx.db.get(args.userId);
-  if (!other || other.status !== "active" || other._id === user._id || await blocked(ctx, user._id, other._id)) return notFound();
+  if (!availableUser(other) || other._id === user._id || await blocked(ctx, user._id, other._id)) return notFound();
   if (await friends(ctx, user._id, other._id)) return { relationship: "approved", requestId: null };
   const pair = pairKey(user._id, other._id);
   const pending = await ctx.db.query("friendRequests").withIndex("by_pair", q => q.eq("pair", pair)).unique();
@@ -87,7 +87,7 @@ export const respond = mutation({ args: { requestId: v.id("friendRequests"), acc
   const request = await ctx.db.get(args.requestId);
   if (!request || request.recipientId !== user._id) return notFound();
   const sender = await ctx.db.get(request.senderId);
-  if (sender?.status !== "active" || await blocked(ctx, user._id, request.senderId)) return notFound();
+  if (!availableUser(sender) || await blocked(ctx, user._id, request.senderId)) return notFound();
   if (args.accept) {
     if ((await friendEdges(ctx, user._id)).length >= 200 || (await friendEdges(ctx, request.senderId)).length >= 200) fail("LIMIT_REACHED", "Friend limit reached");
     if (!(await friends(ctx, user._id, request.senderId))) {

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { action, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { kind } from "./schema";
-import { viewer } from "./lib/auth";
+import { availableUser, viewer } from "./lib/auth";
 import { authorizedContent } from "./lib/access";
 import { fail, httpOrigin, notFound } from "./lib/errors";
 import { randomToken, sha256 } from "./lib/verification";
@@ -35,7 +35,7 @@ export const resolve = internalQuery({ args: { grantId: v.string(), tokenHash: v
   const grant = id ? await ctx.db.get(id) : null;
   if (!grant || grant.tokenHash !== args.tokenHash || grant.expiresAt <= Date.now()) return notFound();
   const user = await ctx.db.get(grant.viewerId);
-  if (!user || user.status !== "active") return notFound();
+  if (!availableUser(user)) return notFound();
   const content = await authorizedContent(ctx, user, grant.contentId, grant.kind);
   const storageId = grant.asset === "video" ? content.videoStorageId : content.thumbnailStorageId;
   if (!storageId) return notFound();

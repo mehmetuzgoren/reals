@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { option } from "./schema";
-import { viewer } from "./lib/auth";
+import { availableUser, viewer } from "./lib/auth";
 import { currentRound, friends, receipt } from "./lib/access";
 import { friendEdges } from "./friends";
 import { originalDTO, publicProfile, receiptDTO, roundDTO } from "./lib/dto";
@@ -16,7 +16,7 @@ export const today = query({ args: {}, handler: async ctx => {
   const friendPresence = [];
   if (round) for (const edge of await friendEdges(ctx, user._id)) {
     const other = await ctx.db.get(edge.lowId === user._id ? edge.highId : edge.lowId);
-    if (other?.status === "active" && await friends(ctx, user._id, other._id)) {
+    if (availableUser(other) && await friends(ctx, user._id, other._id)) {
       friendPresence.push({ profile: publicProfile(other), hasPublished: !!(await receipt(ctx, other._id, round._id)) });
     }
   }

@@ -8,11 +8,11 @@ export const preferences = v.object({ dailyQuestion: v.boolean(), directReply: v
 
 export default defineSchema({
   users: defineTable({
-    issuer: v.string(), subject: v.string(), username: v.union(v.string(), v.null()),
+    authMethod: v.union(v.literal("apple"), v.literal("developmentPassword")), username: v.union(v.string(), v.null()),
     displayName: v.string(), status: v.union(v.literal("active"), v.literal("disabled"), v.literal("deleting"), v.literal("deleted")),
     avatarStorageId: v.union(v.id("_storage"), v.null()), avatarWidth: v.number(), avatarHeight: v.number(),
     preferences, createdAt: v.number(),
-  }).index("by_identity", ["issuer", "subject"]).index("by_username", ["username"]).index("by_avatar", ["avatarStorageId"]),
+  }).index("by_username", ["username"]).index("by_avatar", ["avatarStorageId"]),
   friendRequests: defineTable({
     senderId: v.id("users"), recipientId: v.id("users"), pair: v.string(), createdAt: v.number(),
   }).index("by_pair", ["pair"]).index("by_sender", ["senderId"]).index("by_recipient", ["recipientId"]),
@@ -65,10 +65,10 @@ export default defineSchema({
     asset: v.union(v.literal("video"), v.literal("thumbnail")), expiresAt: v.number(),
   }).index("by_hash", ["tokenHash"]).index("by_expiry", ["expiresAt"]).index("by_viewer", ["viewerId"]),
   deviceTokens: defineTable({
-    userId: v.id("users"), installationId: v.string(), fcmToken: v.string(), platform: v.literal("ios"),
+    userId: v.id("users"), installationId: v.string(), token: v.string(), platform: v.literal("ios"),
     notificationsEnabled: v.boolean(), updatedAt: v.number(),
   }).index("by_owner_installation", ["userId", "installationId"]).index("by_user", ["userId"])
-    .index("by_token", ["fcmToken"]),
+    .index("by_token", ["token"]),
   reports: defineTable({ reporterId: v.id("users"), contentId: v.string(), kind, reason: v.string(), createdAt: v.number() })
     .index("by_target", ["contentId"]).index("by_reporter", ["reporterId"]),
   notificationJobs: defineTable({
@@ -82,8 +82,7 @@ export default defineSchema({
     jobId: v.id("notificationJobs"), deviceId: v.id("deviceTokens"), userId: v.id("users"), state: v.literal("sent"),
   }).index("by_job_device", ["jobId", "deviceId"]).index("by_user", ["userId"]),
   deletionJobs: defineTable({
-    userId: v.id("users"), state: v.union(v.literal("pending"), v.literal("data_deleted"), v.literal("complete")),
-    firebaseState: v.union(v.literal("pending"), v.literal("unconfigured"), v.literal("deleted"), v.literal("failed")),
+    userId: v.id("users"), state: v.union(v.literal("pending"), v.literal("complete")),
     createdAt: v.number(),
   }).index("by_user", ["userId"]).index("by_state", ["state"]),
 });

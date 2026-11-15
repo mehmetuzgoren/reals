@@ -8,9 +8,10 @@
  * @module
  */
 
-import type * as accountWorker from "../accountWorker.js";
 import type * as accounts from "../accounts.js";
 import type * as admin from "../admin.js";
+import type * as auth from "../auth.js";
+import type * as authUsers from "../authUsers.js";
 import type * as blocks from "../blocks.js";
 import type * as captions from "../captions.js";
 import type * as cleanup from "../cleanup.js";
@@ -23,8 +24,8 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_dto from "../lib/dto.js";
 import type * as lib_errors from "../lib/errors.js";
-import type * as lib_firebase from "../lib/firebase.js";
 import type * as lib_http from "../lib/http.js";
+import type * as lib_pushProvider from "../lib/pushProvider.js";
 import type * as lib_schedule from "../lib/schedule.js";
 import type * as lib_verification from "../lib/verification.js";
 import type * as media from "../media.js";
@@ -48,9 +49,10 @@ import type {
 import { anyApi, componentsGeneric } from "convex/server";
 
 const fullApi: ApiFromModules<{
-  accountWorker: typeof accountWorker;
   accounts: typeof accounts;
   admin: typeof admin;
+  auth: typeof auth;
+  authUsers: typeof authUsers;
   blocks: typeof blocks;
   captions: typeof captions;
   cleanup: typeof cleanup;
@@ -63,8 +65,8 @@ const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/dto": typeof lib_dto;
   "lib/errors": typeof lib_errors;
-  "lib/firebase": typeof lib_firebase;
   "lib/http": typeof lib_http;
+  "lib/pushProvider": typeof lib_pushProvider;
   "lib/schedule": typeof lib_schedule;
   "lib/verification": typeof lib_verification;
   media: typeof media;
@@ -107,4 +109,9 @@ export const internal: FilterApi<
   FunctionReference<any, "internal">
 > = anyApi as any;
 
-export const components = componentsGeneric() as unknown as {};
+export const components = componentsGeneric() as unknown as {
+  auth: import("@convex-dev/auth/_generated/component.js").ComponentApi<"auth">;
+  authApple: import("@convex-dev/auth/components/apple/_generated/component.js").ComponentApi<"authApple">;
+  authPassword: import("@convex-dev/auth/components/password/_generated/component.js").ComponentApi<"authPassword">;
+  authUsername: import("@convex-dev/auth/components/username/_generated/component.js").ComponentApi<"authUsername">;
+};

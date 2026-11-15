@@ -1,24 +1,19 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { identity, optionalViewer, viewer } from "./lib/auth";
+import { authenticatedUser, availableUser, viewer } from "./lib/auth";
 import { bounded, fail, httpOrigin, notFound } from "./lib/errors";
 import { originalDTO, pageLimit, publicProfile } from "./lib/dto";
 import { accessScope } from "./lib/access";
 
 export const completeOnboarding = mutation({ args: { username: v.string(), displayName: v.string() }, handler: async (ctx, args) => {
-  const auth = await identity(ctx);
-  const existing = await optionalViewer(ctx);
-  if (existing) return publicProfile(existing);
+  const user = await authenticatedUser(ctx);
+  if (user.username !== null) return publicProfile(user);
   const username = args.username.trim().toLowerCase();
   if (!/^[a-z0-9_]{3,24}$/.test(username)) fail("INVALID_ARGUMENT", "Username must be 3–24 letters, numbers or underscores");
   if (await ctx.db.query("users").withIndex("by_username", q => q.eq("username", username)).unique()) fail("USERNAME_TAKEN", "This username is taken");
-  const id = await ctx.db.insert("users", {
-    issuer: auth.issuer, subject: auth.subject, username, displayName: bounded(args.displayName, 1, 60, "display name"),
-    status: "active", avatarStorageId: null, avatarWidth: 0, avatarHeight: 0,
-    preferences: { dailyQuestion: true, directReply: true }, createdAt: Date.now(),
-  });
-  return publicProfile((await ctx.db.get(id))!);
+  await ctx.db.patch(user._id, { username, displayName: bounded(args.displayName, 1, 60, "display name") });
+  return publicProfile((await ctx.db.get(user._id))!);
 } });
 export const mine = query({ args: { cursor: v.union(v.string(), v.null()), limit: v.number() }, handler: async (ctx, args) => {
   const user = await viewer(ctx);
@@ -103,5 +98,5 @@ export const releaseAvatar = internalMutation({ args: { uploadId: v.string(), le
 export const avatarAsset = internalQuery({ args: { userId: v.string() }, handler: async (ctx, args) => {
   const id = ctx.db.normalizeId("users", args.userId);
   const user = id ? await ctx.db.get(id) : null;
-  return user?.status === "active" ? user.avatarStorageId : null;
+  return availableUser(user) ? user.avatarStorageId : null;
 } });

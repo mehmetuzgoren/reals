@@ -1,5 +1,9 @@
 import { convexTest } from "convex-test";
 import { vi } from "vitest";
+import { registerCore, sessionIdentity } from "@convex-dev/auth/test";
+import { registerPassword } from "@convex-dev/auth/components/password/test";
+import { registerUsername } from "@convex-dev/auth/components/username/test";
+import { registerAppleOauth } from "@convex-dev/auth/components/apple/test";
 import schema from "../convex/schema";
 import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -9,25 +13,45 @@ export const modules = import.meta.glob("../convex/**/*.ts");
 export function setup() {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-11-15T20:00:00Z"));
-  vi.stubEnv("FIREBASE_PROJECT_ID", "take-test");
+  vi.stubEnv("CONVEX_CLOUD_URL", "https://take-test.convex.cloud");
+  vi.stubEnv("CONVEX_SITE_URL", "https://take-test.convex.site");
+  vi.stubEnv("TAKE_DEPLOYMENT_ENV", "development");
   vi.stubEnv("TAKE_HTTP_ORIGIN", "https://take-test.convex.site");
   vi.stubEnv("MEDIA_VERIFIER_ORIGIN", "https://verifier.test");
   vi.stubEnv("MEDIA_VERIFIER_SECRET", "test-only-verifier-secret-not-a-credential");
-  vi.stubEnv("FIREBASE_SERVICE_ACCOUNT_JSON", "");
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
     const hash = new Headers(init?.headers).get("X-Content-SHA256");
     if (String(_input).endsWith("/verify-avatar")) return Response.json({ sha256: hash, width: 64, height: 64, mimeType: "image/jpeg", imageBase64: "/9j/2Q==" });
     return Response.json({ sha256: hash, durationMs: 1000, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac", thumbnailBase64: "/9j/2Q==" });
   });
-  return convexTest({ schema, modules, transactionLimits: true });
+  const t = convexTest({ schema, modules, transactionLimits: true });
+  registerCore(t);
+  registerPassword(t);
+  registerUsername(t);
+  registerAppleOauth(t);
+  return t;
 }
 export type Test = ReturnType<typeof setup>;
 export type Actor = ReturnType<Test["withIdentity"]>;
-export function actor(t: Test, subject: string, extra: Record<string, string | number> = {}) {
-  return t.withIdentity({ issuer: "https://securetoken.google.com/take-test", subject, auth_time: Date.now() / 1000, ...extra });
+const sessions = new WeakMap<Test, Map<string, { accessToken: string }>>();
+export const testPassword = "test-only development password";
+export function sessionClient(t: Test, tokens: { accessToken: string }) {
+  return t.withIdentity({ ...sessionIdentity(tokens), issuer: "https://take-test.convex.cloud/components/auth" });
+}
+export async function actor(t: Test, name: string, extra: Record<string, string | number> = {}) {
+  if (!sessions.has(t)) sessions.set(t, new Map());
+  const cache = sessions.get(t)!;
+  let tokens = cache.get(name);
+  if (!tokens) {
+    const result = await t.mutation(api.auth.signUpWithUsernamePassword, { username: name, password: testPassword });
+    if (result.status !== "complete") throw new Error("Fixture sign-up failed");
+    tokens = result.tokens;
+    cache.set(name, tokens);
+  }
+  return t.withIdentity({ ...sessionIdentity(tokens), issuer: "https://take-test.convex.cloud/components/auth", ...extra });
 }
 export async function user(t: Test, name: string) {
-  const client = actor(t, name);
+  const client = await actor(t, name);
   const profile = await client.mutation(api.profiles.completeOnboarding, { username: name, displayName: name[0].toUpperCase() + name.slice(1) });
   return { client, profile };
 }
