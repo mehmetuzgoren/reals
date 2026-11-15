@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct ProfileView: View {
     @EnvironmentObject private var model: AppModel
@@ -10,6 +11,7 @@ struct ProfileView: View {
     @State private var showSignOut = false
     @State private var showDeletion = false
     @State private var deleting = false
+    @ObservedObject private var notifications = NotificationCoordinator.shared
 
     var body: some View {
         ScrollView {
@@ -26,7 +28,14 @@ struct ProfileView: View {
                         Text("A daily question and eligible direct video replies. Never hidden opinions or previews in a notification.").font(.subheadline).foregroundStyle(TakeTheme.muted)
                         Toggle("Daily question", isOn: preferenceBinding(daily: true)).tint(TakeTheme.lime)
                         Toggle("Direct video replies", isOn: preferenceBinding(daily: false)).tint(TakeTheme.lime)
-                        Button("Enable notifications on this device") { showNotifications = true }.font(.subheadline.bold()).frame(minHeight: 44)
+                        if !model.isDemo {
+                            Text(notificationSummary).font(.caption).foregroundStyle(TakeTheme.muted)
+                            if let error = notifications.errorMessage { InlineNotice(text: error) }
+                        }
+                        Button(!model.isDemo && notifications.authorizationStatus != .notDetermined ? "Open notification settings" : "Enable notifications on this device") {
+                            if !model.isDemo, notifications.authorizationStatus != .notDetermined, let url = URL(string: UIApplication.openNotificationSettingsURLString) { UIApplication.shared.open(url) }
+                            else { showNotifications = true }
+                        }.font(.subheadline.bold()).frame(minHeight: 44)
                     }.takeCard()
                     HStack { Eyebrow(text: "YOUR PAST PERSPECTIVES"); Spacer(); Text("\(state.originals.items.count)").font(.caption.monospaced()).foregroundStyle(TakeTheme.muted) }
                     if state.originals.items.isEmpty { EmptyCard(symbol: "rectangle.stack", title: "Your perspective has a home.", message: "Your own published takes stay here. Friends' past rounds aren't browseable.") }
@@ -62,6 +71,13 @@ struct ProfileView: View {
         } message: { Text("We'll ask iOS to allow the daily prompt and eligible direct replies. You can say no and still post whenever the question is open.") }
         .confirmationDialog("Sign out of TAKE?", isPresented: $showSignOut, titleVisibility: .visible) { Button("Sign out", role: .destructive) { Task { await model.signOut() } } } message: { Text("Private playback and subscriptions will be cleared. Your local retry draft will be removed from this device.") }
         .confirmationDialog("Delete your account and videos?", isPresented: $showDeletion, titleVisibility: .visible) { Button("Delete account permanently", role: .destructive) { Task { await deleteAccount() } } } message: { Text(model.isDemo ? "This removes this fictional identity's content and relationships in the offline demo. You can restore all sample data with Reset Demo." : "Your videos and social relationships will be removed. This can't be undone. A recent Apple sign-in may be required.") }
+    }
+    private var notificationSummary: String {
+        switch notifications.authorizationStatus {
+        case .notDetermined: return "Choose whether iOS may notify you. Posting never requires notification permission."
+        case .denied: return "Notifications are off in iOS. You can still post and reply."
+        default: return notifications.isRegistered ? "This device is registered for your selected notifications." : "iOS permission is on. Device delivery registration is still pending."
+        }
     }
     private func preferenceBinding(daily: Bool) -> Binding<Bool> {
         Binding(get: { daily ? model.profile?.preferences.dailyQuestion ?? false : model.profile?.preferences.directReply ?? false }, set: { value in

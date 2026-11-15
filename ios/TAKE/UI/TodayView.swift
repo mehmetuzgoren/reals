@@ -35,7 +35,7 @@ struct TodayView: View {
         .sheet(isPresented: $showDemo) { DemoControlsView().environmentObject(model) }
         .overlay(alignment: .top) {
             if model.reveal {
-                Label("You're in. Meet the other sides.", systemImage: "lock.open.fill").font(.headline).foregroundStyle(TakeTheme.background).padding(18).background(TakeTheme.lime, in: Capsule()).padding(.top, 18).padding(.horizontal).transition(reduceMotion ? .opacity : .move(edge: .top)).onAppear { Task { try? await Task.sleep(for: .seconds(3)); withAnimation(reduceMotion ? nil : .easeOut) { model.reveal = false } } }
+                Label("You're in. Meet the other sides.", systemImage: "lock.open.fill").font(.headline).foregroundStyle(TakeTheme.background).padding(18).background(TakeTheme.lime, in: Capsule()).padding(.top, 18).padding(.horizontal).allowsHitTesting(false).transition(reduceMotion ? .opacity : .move(edge: .top)).onAppear { Task { try? await Task.sleep(for: .seconds(3)); withAnimation(reduceMotion ? nil : .easeOut) { model.reveal = false } } }
             }
         }
         .onChange(of: model.today?.round?.id) { _, _ in optionID = nil; scrollID = nil }
@@ -49,7 +49,7 @@ struct TodayView: View {
             }
             Spacer()
             if model.isDemo {
-                Button { showDemo = true } label: { Label("Demo", systemImage: "slider.horizontal.3").font(.caption.bold()).padding(.horizontal, 14).padding(.vertical, 12).background(TakeTheme.raised, in: Capsule()) }.accessibilityIdentifier("Demo controls")
+                Button { showDemo = true } label: { Label("Demo", systemImage: "slider.horizontal.3").font(.caption.bold()).padding(.horizontal, 14).padding(.vertical, 12).frame(minHeight: 44).background(TakeTheme.raised, in: Capsule()) }.accessibilityIdentifier("Demo controls")
             }
         }
     }
