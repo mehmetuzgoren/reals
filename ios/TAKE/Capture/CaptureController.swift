@@ -72,6 +72,20 @@ final class CaptureController: NSObject, ObservableObject {
         elapsed = 0
         PlaybackCoordinator.shared.clear()
 
+        #if DEBUG
+        if !cameraAvailable {
+            do {
+                try await engine.prepareSample(id: id)
+                guard generation == id else { return }
+                state = .ready
+            } catch {
+                guard generation == id else { return }
+                fail((error as? LocalizedError)?.errorDescription ?? "The debug sample couldn't start.")
+            }
+            return
+        }
+        #endif
+
         guard cameraAvailable else {
             fail("A front camera isn't available on this device.")
             return
@@ -229,6 +243,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
     private var recording: Recording?
     private var ownedFiles: Set<URL> = []
     private var exportTask: Task<Void, Never>?
+    private var usesSample = false
 
     init(session: AVCaptureSession) {
         self.session = session
@@ -309,8 +324,77 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
         }
     }
 
+    #if DEBUG
+    func prepareSample(id: UUID) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                guard self.recording == nil else {
+                    continuation.resume(throwing: CaptureFailure("The previous take is still finishing. Please try again."))
+                    return
+                }
+                self.invalidate(nil)
+                guard Bundle.main.url(forResource: "sample-mock", withExtension: "mp4") != nil else {
+                    continuation.resume(throwing: CaptureFailure("The debug sample clip is missing from this build."))
+                    return
+                }
+                do {
+                    try FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.complete])
+                } catch {
+                    continuation.resume(throwing: CaptureFailure("The debug sample couldn't start. Please try again."))
+                    return
+                }
+                self.operationID = id
+                self.usesSample = true
+                self.isPrepared = true
+                continuation.resume()
+            }
+        }
+    }
+
+    private static func sampleRecording(seconds: Double) async throws -> AVAsset {
+        guard let url = Bundle.main.url(forResource: "sample-mock", withExtension: "mp4") else {
+            throw CaptureFailure("The debug sample clip is missing from this build.")
+        }
+        let source = AVURLAsset(url: url)
+        guard let video = try await source.loadTracks(withMediaType: .video).first,
+              let audio = try await source.loadTracks(withMediaType: .audio).first else {
+            throw CaptureFailure("The debug sample clip needs video and sound.")
+        }
+        let videoRange = try await video.load(.timeRange)
+        let audioRange = try await audio.load(.timeRange)
+        let unit = CMTimeMinimum(videoRange.duration, audioRange.duration)
+        let composition = AVMutableComposition()
+        guard unit.seconds > 0,
+              let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+              let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw CaptureFailure("The debug sample clip is unreadable.")
+        }
+        videoTrack.preferredTransform = try await video.load(.preferredTransform)
+        let target = CMTime(seconds: min(15, max(3, seconds)), preferredTimescale: 600)
+        var cursor = CMTime.zero
+        while cursor < target {
+            let length = CMTimeMinimum(unit, target - cursor)
+            try videoTrack.insertTimeRange(CMTimeRange(start: videoRange.start, duration: length), of: video, at: cursor)
+            try audioTrack.insertTimeRange(CMTimeRange(start: audioRange.start, duration: length), of: audio, at: cursor)
+            cursor = cursor + length
+        }
+        return composition
+    }
+    #endif
+
     func start(id: UUID) {
         queue.async {
+            #if DEBUG
+            if self.usesSample {
+                guard self.operationID == id, self.isPrepared, self.recording == nil else {
+                    if self.operationID == id { self.invalidate("The debug sample isn't ready. Please try again.") }
+                    return
+                }
+                self.recording = Recording(id: id, url: self.directory.appendingPathComponent("\(UUID().uuidString).mov"), createdAt: Date())
+                self.onEvent?(id, .started)
+                return
+            }
+            #endif
             guard self.operationID == id, self.isPrepared, self.session.isRunning,
                   !self.session.isInterrupted, self.recording == nil else {
                 if self.operationID == id { self.invalidate("The camera isn't ready. Please try recording again.") }
@@ -326,6 +410,16 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
     func stop(id: UUID) {
         queue.async {
             guard self.operationID == id, self.recording?.id == id else { return }
+            #if DEBUG
+            if self.usesSample, let recording = self.recording {
+                self.recording = nil
+                self.isPrepared = false
+                let seconds = Date().timeIntervalSince(recording.createdAt)
+                self.onEvent?(id, .exporting)
+                self.export(recording) { try await CaptureEngine.sampleRecording(seconds: seconds) }
+                return
+            }
+            #endif
             self.recording?.stopRequested = true
             if self.output.isRecording { self.output.stopRecording() }
         }
@@ -369,7 +463,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 return
             }
             self.onEvent?(recording.id, .exporting)
-            self.export(recording)
+            self.export(recording) { AVURLAsset(url: recording.url) }
         }
     }
 
@@ -415,12 +509,12 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
         guard output.connection(with: .audio) != nil else { throw CaptureFailure("Recording with sound isn't available.") }
     }
 
-    private func export(_ recording: Recording) {
+    private func export(_ recording: Recording, source: @escaping () async throws -> AVAsset) {
         let url = directory.appendingPathComponent("\(UUID().uuidString).mp4")
         ownedFiles.insert(url)
         exportTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let asset = AVURLAsset(url: recording.url)
+                let asset = try await source()
                 let duration = try await asset.load(.duration)
                 let video = try await asset.loadTracks(withMediaType: .video)
                 let audio = try await asset.loadTracks(withMediaType: .audio)
@@ -508,6 +602,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
         let id = operationID
         operationID = nil
         isPrepared = false
+        usesSample = false
         exportTask?.cancel()
         exportTask = nil
         if output.isRecording { output.stopRecording() }

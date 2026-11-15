@@ -49,6 +49,7 @@ struct DemoControlsView: View {
                     }
                 }
                 Section { Button("Reset all offline demo data", role: .destructive) { resetConfirmation = true } }
+                Section { Button("Leave the demo") { Task { dismiss(); await model.signOut() } }.accessibilityIdentifier("Leave the demo") }
             }
             .scrollContentBackground(.hidden).takeScreen().navigationTitle("Demo lab").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
