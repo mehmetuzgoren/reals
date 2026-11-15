@@ -1,4 +1,3 @@
-import AuthenticationServices
 import Foundation
 
 @MainActor
@@ -34,16 +33,18 @@ protocol TakeService: AnyObject {
     func setNotifications(_ preferences: NotificationPreferences) async throws
     func deleteContent(id: String, kind: ContentKind) async throws
     func report(contentId: String, kind: ContentKind, reason: String) async throws
-    func registerDevice(installationId: String, fcmToken: String, enabled: Bool) async throws
+    func registerDevice(installationId: String, deviceToken: String, enabled: Bool) async throws
     func unregisterDevice(installationId: String) async throws
     func requestDeletion() async throws
     func signOut() async throws
 }
 
 @MainActor
-protocol AppleAuthenticationService: AnyObject {
-    func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) throws
-    func completeAppleSignIn(_ authorization: ASAuthorization) async throws
+protocol LiveAuthenticationService: AnyObject {
+    var isDevelopmentSession: Bool { get }
+    func signInWithApple() async throws
+    func reauthenticateWithApple() async throws
+    func signInDevelopment(username: String, password: String, createAccount: Bool, reauthenticate: Bool) async throws
 }
 
 enum DemoIdentity: String, CaseIterable, Identifiable, Codable {

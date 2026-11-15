@@ -1,3 +1,4 @@
+import AuthenticationServices
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -11,6 +12,8 @@ struct ProfileView: View {
     @State private var showSignOut = false
     @State private var showDeletion = false
     @State private var deleting = false
+    @State private var showDeveloperReauthentication = false
+    @State private var showReauthentication = false
     @ObservedObject private var notifications = NotificationCoordinator.shared
 
     var body: some View {
@@ -65,6 +68,15 @@ struct ProfileView: View {
         .refreshable { await model.refresh() }
         .sheet(isPresented: $editing) { EditProfileView().environmentObject(model) }
         .sheet(isPresented: $showDemo) { DemoControlsView().environmentObject(model) }
+        .sheet(isPresented: $showDeveloperReauthentication, onDismiss: {
+            Task { if !model.isDemo, model.viewer != nil { await model.refresh(); model.watch() } }
+        }) {
+            DeveloperSignInView(reauthenticate: true, onAuthenticated: { await deleteAccount(reauthenticated: true) }).environmentObject(model)
+        }
+        .alert("Sign in again to confirm", isPresented: $showReauthentication) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign in again") { Task { await deleteAccount() } }
+        } message: { Text("Your account hasn't been deleted. Complete a fresh sign-in to this same account, then confirm deletion again.") }
         .alert("Just the things worth opening.", isPresented: $showNotifications) {
             Button("Not now", role: .cancel) {}
             Button("Enable notifications") { Task { if model.isDemo { model.error = "Demo Mode stays offline and doesn't register push tokens. Your preferences are saved only in this demo." } else { await NotificationCoordinator.shared.requestPermission() } } }
@@ -98,13 +110,28 @@ struct ProfileView: View {
         do { if let next = try await model.service?.profile(cursor: cursor) { model.profile = ProfileState(profile: next.profile, preferences: next.preferences, originals: Page(items: (model.profile?.originals.items ?? []) + next.originals.items, nextCursor: next.originals.nextCursor)) } }
         catch { model.error = error.localizedDescription }
     }
-    private func deleteAccount() async {
-        deleting = true
-        do { try await model.service?.requestDeletion(); await model.signOut() }
-        catch {
-            model.error = (error as? ServiceFailure)?.code == "REAUTH_REQUIRED" ? "For your security, sign out and sign in with Apple again, then return here to delete your account within five minutes." : error.localizedDescription
+    private func deleteAccount(reauthenticated: Bool = false) async {
+        guard let service = model.service else { return }
+        if !service.isDemo, !reauthenticated, let authentication = service as? any LiveAuthenticationService, authentication.isDevelopmentSession {
+            showDeveloperReauthentication = true
+            return
         }
-        deleting = false
+        deleting = true
+        defer { deleting = false }
+        do {
+            if !service.isDemo, !reauthenticated {
+                guard let authentication = service as? any LiveAuthenticationService else { throw ServiceFailure.notConfigured }
+                try await authentication.reauthenticateWithApple()
+            }
+            guard model.service === service else { throw CancellationError() }
+            try await service.requestDeletion()
+            await model.signOut()
+        }
+        catch {
+            if (error as? ServiceFailure)?.code == "REAUTH_REQUIRED" { showReauthentication = true }
+            else if !(error is CancellationError), (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin { model.error = (error as? ServiceFailure)?.message ?? "Couldn't confirm deletion. Your account hasn't been deleted. Please try again." }
+            if model.service === service, model.viewer != nil { await model.refresh(); model.watch() }
+        }
     }
 }
 

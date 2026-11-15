@@ -317,7 +317,7 @@ class DemoService: TakeService, DemoControlling {
     }
     private func removeLocal(_ url: URL) { if url.path.hasPrefix(directory.path) { try? FileManager.default.removeItem(at: url) } }
     func report(contentId: String, kind: ContentKind, reason: String) async throws { _ = try await playback(contentId: contentId, kind: kind, asset: "video") }
-    func registerDevice(installationId: String, fcmToken: String, enabled: Bool) async throws {}
+    func registerDevice(installationId: String, deviceToken: String, enabled: Bool) async throws {}
     func unregisterDevice(installationId: String) async throws {}
     func requestDeletion() async throws {
         stopWatching()

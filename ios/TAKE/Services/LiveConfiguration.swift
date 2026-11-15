@@ -1,29 +1,17 @@
-import FirebaseCore
 import Foundation
 
 struct LiveConfiguration {
     let convexURL: URL
     let convexSiteURL: URL
-    let firebaseOptions: FirebaseOptions
 
-    private init(convexURL: URL, convexSiteURL: URL, firebaseOptions: FirebaseOptions) {
+    private init(convexURL: URL, convexSiteURL: URL) {
         self.convexURL = convexURL
         self.convexSiteURL = convexSiteURL
-        self.firebaseOptions = firebaseOptions
     }
 
     static func load(bundle: Bundle = .main) throws -> LiveConfiguration {
         guard let deployment = bundle.object(forInfoDictionaryKey: "CONVEX_URL") as? String,
-              let site = bundle.object(forInfoDictionaryKey: "CONVEX_SITE_URL") as? String,
-              bundle.object(forInfoDictionaryKey: "FirebaseAppDelegateProxyEnabled") as? Bool == false,
-              bundle.object(forInfoDictionaryKey: "FirebaseMessagingAutoInitEnabled") as? Bool == false,
-              let plist = bundle.path(forResource: "GoogleService-Info", ofType: "plist"),
-              let options = FirebaseOptions(contentsOfFile: plist),
-              let projectID = options.projectID, validSetting(projectID),
-              let apiKey = options.apiKey, validSetting(apiKey),
-              validSetting(options.googleAppID),
-              validSetting(options.gcmSenderID),
-              options.bundleID == bundle.bundleIdentifier else {
+              let site = bundle.object(forInfoDictionaryKey: "CONVEX_SITE_URL") as? String else {
             throw ServiceFailure.notConfigured
         }
         let convexURL = try origin(deployment)
@@ -31,10 +19,7 @@ struct LiveConfiguration {
         guard convexURL.host?.lowercased() != convexSiteURL.host?.lowercased() else {
             throw ServiceFailure.notConfigured
         }
-        if let expectedProject = bundle.object(forInfoDictionaryKey: "FIREBASE_PROJECT_ID") as? String {
-            guard validSetting(expectedProject), expectedProject == projectID else { throw ServiceFailure.notConfigured }
-        }
-        return LiveConfiguration(convexURL: convexURL, convexSiteURL: convexSiteURL, firebaseOptions: options)
+        return LiveConfiguration(convexURL: convexURL, convexSiteURL: convexSiteURL)
     }
 
     func uploadURL(_ value: String, uploadId: String, asset: String) throws -> URL {

@@ -1,6 +1,4 @@
 import Combine
-import FirebaseCore
-import FirebaseMessaging
 import Foundation
 import UIKit
 import UserNotifications
@@ -19,15 +17,15 @@ final class NotificationCoordinator: NSObject, ObservableObject {
 
     private weak var service: (any TakeService)?
     private let center = UNUserNotificationCenter.current()
-    private var fcmToken: String?
+    private var apnsToken: String?
     private var registration: (viewer: String, token: String)?
     private var registrationTask: Task<Void, Never>?
     private var registrationEpoch = UUID()
     private var pendingOpen = false
     private var isRefreshing = false
     private var refreshAgain = false
-    private var firebaseReady = false
-    private var messagingStarted = false
+    private var apnsRegistrationStarted = false
+    private let apnsRegistrationEnabled = Bundle.main.object(forInfoDictionaryKey: "TAKE_APNS_REGISTRATION_ENABLED") as? Bool == true
 
     private var installationID: String {
         let key = "TAKE.live.installationID"
@@ -42,32 +40,48 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     }
 
     func configure(service: any TakeService) {
-        guard !service.isDemo else { return }
         registrationEpoch = UUID()
+        registrationTask?.cancel()
+        registrationTask = nil
+        refreshAgain = false
+        self.service = nil
+        registration = nil
+        apnsToken = nil
+        apnsRegistrationStarted = false
+        isRegistered = false
+        errorMessage = nil
+        guard !service.isDemo else {
+            pendingOpen = false
+            UIApplication.shared.unregisterForRemoteNotifications()
+            return
+        }
         self.service = service
         center.delegate = self
-        if FirebaseApp.app() != nil { firebaseDidConfigure() }
         deliverPendingOpen()
         scheduleRefresh()
     }
 
     func requestPermission() async {
-        guard let service, !service.isDemo, service.viewerID != nil, firebaseReady else { return }
+        guard !Task.isCancelled, let service, !service.isDemo, let viewer = service.viewerID else { return }
+        let epoch = registrationEpoch
         do {
             let settings = await center.notificationSettings()
+            guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
             if settings.authorizationStatus == .notDetermined {
                 _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
             }
+            guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
             errorMessage = nil
             await refreshRegistration()
         } catch {
+            guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
             errorMessage = "Notification permission couldn't be requested. You can change it in Settings."
         }
     }
 
     func refreshRegistration() async {
+        guard !Task.isCancelled, let service, !service.isDemo, let viewer = service.viewerID else { return }
         guard !isRefreshing else { refreshAgain = true; return }
-        guard let service, !service.isDemo, let viewer = service.viewerID, firebaseReady, FirebaseApp.app() != nil else { return }
         isRefreshing = true
         defer {
             isRefreshing = false
@@ -78,105 +92,114 @@ final class NotificationCoordinator: NSObject, ObservableObject {
         }
         let epoch = registrationEpoch
         let settings = await center.notificationSettings()
-        guard epoch == registrationEpoch, self.service === service else { return }
+        guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
         authorizationStatus = settings.authorizationStatus
         let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional || settings.authorizationStatus == .ephemeral
         guard allowed else {
-            Messaging.messaging().isAutoInitEnabled = false
             UIApplication.shared.unregisterForRemoteNotifications()
+            apnsRegistrationStarted = false
+            apnsToken = nil
+            registration = nil
+            isRegistered = false
+            errorMessage = nil
+            let installationId = installationID
             do {
-                if let fcmToken {
-                    try await service.registerDevice(installationId: installationID, fcmToken: fcmToken, enabled: false)
-                } else {
-                    try await service.unregisterDevice(installationId: installationID)
+                try await withLiveTimeout(seconds: 5) {
+                    guard !Task.isCancelled, epoch == self.registrationEpoch, self.service === service, service.viewerID == viewer else { throw CancellationError() }
+                    try await service.unregisterDevice(installationId: installationId)
                 }
-                guard epoch == registrationEpoch else { return }
-                registration = nil
-                isRegistered = false
-                errorMessage = nil
             } catch {
-                guard epoch == registrationEpoch else { return }
-                errorMessage = "Couldn't update notification delivery. Open TAKE again when you're connected."
+                guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
+                errorMessage = "Couldn't remove this device's notification registration. Registration is disabled on this phone."
             }
             return
         }
-        messagingStarted = true
-        Messaging.messaging().isAutoInitEnabled = true
-        Messaging.messaging().delegate = self
-        UIApplication.shared.registerForRemoteNotifications()
-        guard Messaging.messaging().apnsToken != nil else { return }
+        if registration?.viewer != viewer {
+            registration = nil
+            isRegistered = false
+        }
+        if apnsRegistrationEnabled, !apnsRegistrationStarted {
+            apnsRegistrationStarted = true
+            errorMessage = nil
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        guard let token = apnsToken else {
+            if !apnsRegistrationEnabled {
+                errorMessage = "Remote push delivery isn't configured for this build. You can still save notification preferences."
+            }
+            return
+        }
+        if registration?.viewer == viewer, registration?.token == token, isRegistered { return }
+        let installationId = installationID
         do {
-            let token: String
-            if let fcmToken { token = fcmToken }
-            else { token = try await withLiveTimeout(seconds: 10) { try await Messaging.messaging().token() } }
-            guard epoch == registrationEpoch, self.service === service, service.viewerID == viewer else { return }
-            guard !token.isEmpty else { return }
-            fcmToken = token
-            if registration?.viewer == viewer, registration?.token == token, isRegistered { return }
-            try await service.registerDevice(installationId: installationID, fcmToken: token, enabled: true)
-            guard epoch == registrationEpoch, self.service === service else { return }
+            try await withLiveTimeout(seconds: 10) {
+                guard !Task.isCancelled, epoch == self.registrationEpoch, self.service === service, service.viewerID == viewer, self.apnsToken == token else { throw CancellationError() }
+                try await service.registerDevice(installationId: installationId, deviceToken: token, enabled: true)
+            }
+            guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer, apnsToken == token else { return }
             registration = (viewer, token)
             isRegistered = true
             errorMessage = nil
         } catch {
-            guard epoch == registrationEpoch else { return }
-            errorMessage = "Couldn't enable notification delivery. Open TAKE again when you're connected."
+            guard !Task.isCancelled, epoch == registrationEpoch, self.service === service, service.viewerID == viewer, apnsToken == token else { return }
+            errorMessage = "Couldn't save this device's notification token. Open TAKE again when you're connected."
         }
     }
 
     func signOutCleanup() async {
         let previousService = service
-        let shouldRetireToken = messagingStarted
+        let previousViewer = previousService?.viewerID
         registrationEpoch = UUID()
+        let epoch = registrationEpoch
         registrationTask?.cancel()
         registrationTask = nil
         refreshAgain = false
         service = nil
         registration = nil
-        fcmToken = nil
+        apnsToken = nil
+        apnsRegistrationStarted = false
         isRegistered = false
         pendingOpen = false
-        if previousService != nil || shouldRetireToken { errorMessage = nil }
-        if firebaseReady, FirebaseApp.app() != nil {
-            Messaging.messaging().isAutoInitEnabled = false
-            UIApplication.shared.unregisterForRemoteNotifications()
-        }
-        if let previousService, !previousService.isDemo, previousService.viewerID != nil {
-            do {
-                try await previousService.unregisterDevice(installationId: installationID)
-            } catch {
-                errorMessage = "This device couldn't be removed from your account while offline. Push registration has been disabled on this phone."
-            }
-        }
-        if shouldRetireToken, firebaseReady, FirebaseApp.app() != nil {
-            do {
-                try await withLiveTimeout(seconds: 5) { try await Messaging.messaging().deleteToken() }
-                messagingStarted = false
-            } catch {
-                errorMessage = "Push registration is disabled. Its delivery token couldn't be retired while offline."
-            }
-        }
+        errorMessage = nil
+        UIApplication.shared.unregisterForRemoteNotifications()
         center.removeAllDeliveredNotifications()
         center.removeAllPendingNotificationRequests()
+        if let previousService, !previousService.isDemo, let previousViewer {
+            let installationId = installationID
+            do {
+                try await withLiveTimeout(seconds: 5) {
+                    guard !Task.isCancelled, epoch == self.registrationEpoch, self.service == nil, previousService.viewerID == previousViewer else { throw CancellationError() }
+                    try await previousService.unregisterDevice(installationId: installationId)
+                }
+            } catch {
+                guard epoch == registrationEpoch, service == nil else { return }
+                if !(error is CancellationError) {
+                    errorMessage = "Couldn't remove this device from your account. Remote notification registration is disabled on this phone."
+                }
+            }
+        }
+        guard epoch == registrationEpoch, service == nil else { return }
         try? await center.setBadgeCount(0)
     }
 
-    func firebaseDidConfigure() {
-        guard FirebaseApp.app() != nil else { return }
-        firebaseReady = true
-        Messaging.messaging().isAutoInitEnabled = false
-        Messaging.messaging().delegate = self
-        center.delegate = self
-    }
-
     func didRegisterAPNs(_ token: Data) {
-        guard firebaseReady, FirebaseApp.app() != nil, let service, !service.isDemo, service.viewerID != nil else { return }
-        Messaging.messaging().apnsToken = token
+        guard apnsRegistrationEnabled, apnsRegistrationStarted, !token.isEmpty, let service, !service.isDemo, service.viewerID != nil else { return }
+        let deviceToken = token.map { String(format: "%02x", $0) }.joined()
+        apnsRegistrationStarted = true
+        if apnsToken == deviceToken, registration?.viewer == service.viewerID, isRegistered { return }
+        apnsToken = deviceToken
+        registration = nil
+        isRegistered = false
         scheduleRefresh()
     }
 
     func didFailAPNsRegistration() {
-        guard service != nil else { return }
+        guard let service, !service.isDemo, service.viewerID != nil, apnsRegistrationStarted else { return }
+        apnsRegistrationStarted = false
+        apnsToken = nil
+        registration = nil
+        registrationTask?.cancel()
+        refreshAgain = false
         isRegistered = false
         errorMessage = "Remote notifications aren't available on this device yet. You can still use TAKE."
     }
@@ -201,19 +224,6 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     }
 }
 
-extension NotificationCoordinator: MessagingDelegate {
-    nonisolated func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        Task { @MainActor [weak self] in
-            guard let self, let service = self.service, !service.isDemo, service.viewerID != nil else { return }
-            if self.fcmToken == fcmToken, self.isRegistered { return }
-            self.fcmToken = fcmToken
-            self.registration = nil
-            self.isRegistered = false
-            self.scheduleRefresh()
-        }
-    }
-}
-
 extension NotificationCoordinator: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         await MainActor.run {
@@ -232,7 +242,6 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
 final class TakeAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = NotificationCoordinator.shared
-        if FirebaseApp.app() != nil { NotificationCoordinator.shared.firebaseDidConfigure() }
         if launchOptions?[.remoteNotification] != nil { NotificationCoordinator.shared.notificationOpened() }
         return true
     }

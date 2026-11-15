@@ -1,4 +1,3 @@
-import AuthenticationServices
 import AVFoundation
 import Combine
 import ConvexMobile
@@ -13,14 +12,14 @@ extension Notification.Name {
 }
 
 @MainActor
-final class ProductionService: TakeService, AppleAuthenticationService {
+final class ProductionService: TakeService, LiveAuthenticationService {
     let isDemo = false
     private(set) var viewerID: String?
 
     private let configuration: LiveConfiguration
-    private let authentication: FirebaseAuthentication
-    private let client: ConvexClientWithAuth<FirebaseSession>
-    private var authenticationTask: Task<FirebaseSession, Error>?
+    private let authentication: ConvexAuthentication
+    private let client: ConvexClientWithAuth<ConvexSession>
+    private var authenticationTask: Task<ConvexSession, Error>?
     private var authenticatedUID: String?
     private var allowsSessionRestore = true
     private var sessionEpoch = UUID()
@@ -41,7 +40,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
 
     init(configuration: LiveConfiguration) throws {
         self.configuration = configuration
-        authentication = try FirebaseAuthentication(configuration: configuration)
+        authentication = try ConvexAuthentication(configuration: configuration)
         client = ConvexClientWithAuth(deploymentUrl: configuration.convexURL.absoluteString, authProvider: authentication)
         authentication.onSessionInvalidated = { [weak self] in
             self?.clearSession()
@@ -50,20 +49,35 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         authentication.onTokenRefreshUnavailable = { [weak self] in self?.pauseAuthentication() }
     }
 
-    func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) throws {
-        try authentication.prepareAppleRequest(request)
+    var isDevelopmentSession: Bool { authentication.isDevelopmentSession }
+
+    func signInWithApple() async throws {
+        try await authentication.signInWithApple()
+        try await bindNewSession()
     }
 
-    func completeAppleSignIn(_ authorization: ASAuthorization) async throws {
-        await NotificationCoordinator.shared.signOutCleanup()
-        clearSession()
-        authentication.resetTokenBinding()
-        try await authentication.completeAppleSignIn(authorization)
+    func reauthenticateWithApple() async throws {
+        guard let uid = authentication.currentUID else { throw Self.unauthenticated }
+        try await authentication.signInWithApple(expectedUserID: uid)
+        try await bindNewSession()
+    }
+
+    func signInDevelopment(username: String, password: String, createAccount: Bool, reauthenticate: Bool) async throws {
+        let expectedUser = reauthenticate ? authentication.currentUID : nil
+        if reauthenticate, expectedUser == nil { throw Self.unauthenticated }
+        try await authentication.signInDevelopment(username: username, password: password, createAccount: createAccount, expectedUserID: expectedUser)
+        try await bindNewSession()
+    }
+
+    private func bindNewSession() async throws {
+        if let authenticatedUID, authenticatedUID != authentication.currentUID { clearSession() }
+        else { pauseAuthentication(notify: false) }
         allowsSessionRestore = true
         let epoch = sessionEpoch
         let result = await client.login()
         guard epoch == sessionEpoch else { throw CancellationError() }
         let session = try result.get()
+        guard session.uid == authentication.currentUID else { throw CancellationError() }
         authenticatedUID = session.uid
     }
 
@@ -190,7 +204,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         let maxBytes = min(intent.maxBytes, 8 * 1_024 * 1_024)
         try await validateClip(clip, maxBytes: maxBytes, maxDuration: intent.maxDurationMs)
         let destination = try configuration.uploadURL(intent.uploadUrl, uploadId: intent.uploadId, asset: "video")
-        let token = try await authentication.freshIDToken()
+        let token = try await authentication.freshAccessToken()
         guard epoch == sessionEpoch else { throw CancellationError() }
         let snapshot = try await Task.detached(priority: .utility) {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("TAKE-live-\(UUID().uuidString).mp4")
@@ -366,7 +380,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
                 throw failure
             }.value
             guard epoch == sessionEpoch else { throw CancellationError() }
-            let token = try await authentication.freshIDToken()
+            let token = try await authentication.freshAccessToken()
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("TAKE-avatar-\(UUID().uuidString)")
             try image.write(to: file, options: [.atomic, .completeFileProtection])
             defer { try? FileManager.default.removeItem(at: file) }
@@ -400,9 +414,9 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         try await acknowledge("reports:create", ["contentId": contentId, "kind": kind.rawValue, "reason": reason])
     }
 
-    func registerDevice(installationId: String, fcmToken: String, enabled: Bool) async throws {
-        guard !installationId.isEmpty, !fcmToken.isEmpty else { throw Self.invalidResponse }
-        try await acknowledge("devices:register", ["installationId": installationId, "fcmToken": fcmToken, "platform": "ios", "notificationsEnabled": enabled])
+    func registerDevice(installationId: String, deviceToken: String, enabled: Bool) async throws {
+        guard !installationId.isEmpty, !deviceToken.isEmpty, deviceToken.count.isMultiple(of: 2), deviceToken.allSatisfy({ $0.isHexDigit }) else { throw Self.invalidResponse }
+        try await acknowledge("devices:register", ["installationId": installationId, "token": deviceToken, "platform": "ios", "notificationsEnabled": enabled])
     }
 
     func unregisterDevice(installationId: String) async throws {
@@ -438,7 +452,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         guard allowsSessionRestore, let uid = authentication.currentUID else { throw Self.unauthenticated }
         if authenticatedUID == uid { return }
         let epoch = sessionEpoch
-        let task: Task<FirebaseSession, Error>
+        let task: Task<ConvexSession, Error>
         if let authenticationTask { task = authenticationTask }
         else {
             task = Task { try (await client.loginFromCache()).get() }
@@ -568,7 +582,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         NotificationCenter.default.post(name: .takeSessionEnded, object: self)
     }
 
-    private func pauseAuthentication() {
+    private func pauseAuthentication(notify: Bool = true) {
         sessionEpoch = UUID()
         authenticatedUID = nil
         authenticationTask?.cancel(); authenticationTask = nil
@@ -576,7 +590,10 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         let queries = Array(pendingQueries.values)
         pendingQueries.removeAll()
         queries.forEach { $0() }
-        NotificationCenter.default.post(name: .takeAuthenticationPaused, object: self)
+        let activeTransfers = Array(transfers.values)
+        transfers.removeAll()
+        activeTransfers.forEach { $0.cancel() }
+        if notify { NotificationCenter.default.post(name: .takeAuthenticationPaused, object: self) }
     }
 
     private func invalidatePrivateAccess() {

@@ -10,6 +10,7 @@
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>take</string></array></dict></array>
 <key>LSRequiresIPhoneOS</key><true/>
 <key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBackground</string></dict>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
@@ -18,9 +19,5 @@
 <key>NSMicrophoneUsageDescription</key><string>Add your voice to your video take and replies.</string>
 <key>CONVEX_URL</key><string>$(CONVEX_URL)</string>
 <key>CONVEX_SITE_URL</key><string>$(CONVEX_SITE_URL)</string>
-<key>FIREBASE_PROJECT_ID</key><string>$(FIREBASE_PROJECT_ID)</string>
-<key>FirebaseAppDelegateProxyEnabled</key><false/>
-<key>FirebaseMessagingAutoInitEnabled</key><false/>
-<key>UIBackgroundModes</key><array><string>remote-notification</string></array>
 <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict></plist>

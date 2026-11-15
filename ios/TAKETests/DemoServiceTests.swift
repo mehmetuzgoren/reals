@@ -1,6 +1,5 @@
 import AVFoundation
-import FirebaseCore
-import FirebaseAuth
+import ConvexMobile
 import XCTest
 @testable import TAKE
 
@@ -33,7 +32,9 @@ final class DemoServiceTests: XCTestCase {
     private func checkEqual<T: Equatable>(_ first: T, _ second: T, file: StaticString = #filePath, line: UInt = #line) { XCTAssertEqual(first, second, file: file, line: line) }
 
     func testOfflineUnconfiguredDemoLaunchContainsNoFriendsOpinions() async throws {
-        XCTAssertNil(FirebaseApp.app())
+        let isolated: any TakeService = service
+        XCTAssertNil(isolated as? any LiveAuthenticationService)
+        checkTrue(service.isDemo)
         checkEqual(service.identity, .casey)
         let state = try await service.today()
         checkFalse(state.canViewFriends)
@@ -248,9 +249,10 @@ final class DemoServiceTests: XCTestCase {
     }
 
     func testTransientAuthenticationFailureRevokesAccessButPreservesRetryClip() async throws {
-        checkTrue(FirebaseAuthentication.isTransientTokenError(NSError(domain: AuthErrorDomain, code: AuthErrorCode.networkError.rawValue)))
-        checkTrue(FirebaseAuthentication.isTransientTokenError(URLError(.notConnectedToInternet)))
-        checkFalse(FirebaseAuthentication.isTransientTokenError(NSError(domain: AuthErrorDomain, code: AuthErrorCode.userDisabled.rawValue)))
+        checkTrue(ConvexAuthentication.isTransientTokenError(ServiceFailure(code: "AUTH_NETWORK", message: "Unavailable", retryable: true)))
+        checkTrue(ConvexAuthentication.isTransientTokenError(URLError(.notConnectedToInternet)))
+        checkFalse(ConvexAuthentication.isTransientTokenError(ServiceFailure(code: "UNAUTHENTICATED", message: "Unavailable", retryable: false)))
+        checkFalse(ConvexAuthentication.isTransientTokenError(ClientError.ConvexError(data: "{}")))
         let model = AppModel()
         model.service = service
         model.viewer = try await service.session().profile
@@ -275,24 +277,101 @@ final class DemoServiceTests: XCTestCase {
         var failureCalls = 0
         let failure: (Error) -> ServiceFailure = { error in
             failureCalls += 1
-            return ServiceFailure(code: FirebaseAuthentication.isTransientTokenError(error) ? "AUTH_NETWORK" : "UNAUTHENTICATED", message: "Unavailable", retryable: true)
+            return ServiceFailure(code: ConvexAuthentication.isTransientTokenError(error) ? "AUTH_NETWORK" : "UNAUTHENTICATED", message: "Unavailable", retryable: true)
         }
         do {
-            _ = try await FirebaseAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { true }, onFailure: failure)
+            _ = try await ConvexAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { true }, onFailure: failure)
             XCTFail("A cached refresh must fail closed")
         } catch { checkEqual((error as? ServiceFailure)?.code, "AUTH_NETWORK") }
         checkEqual(failureCalls, 1)
         do {
-            _ = try await FirebaseAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { false }, onFailure: failure)
+            _ = try await ConvexAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { false }, onFailure: failure)
             XCTFail("An old binding must be cancelled")
         } catch { checkTrue(error is CancellationError) }
         do {
-            _ = try await FirebaseAuthentication.retrieveToken({ "older-binding-token" }, isCurrent: { false }, onFailure: failure)
+            _ = try await ConvexAuthentication.retrieveToken({ "older-binding-token" }, isCurrent: { false }, onFailure: failure)
             XCTFail("An old binding must not return a token")
         } catch { checkTrue(error is CancellationError) }
         checkEqual(failureCalls, 1)
-        checkEqual(try await FirebaseAuthentication.retrieveToken({ "current-binding-token" }, isCurrent: { true }, onFailure: failure), "current-binding-token")
+        checkEqual(try await ConvexAuthentication.retrieveToken({ "current-binding-token" }, isCurrent: { true }, onFailure: failure), "current-binding-token")
         checkEqual(failureCalls, 1)
+    }
+
+    func testAppleRelayUsesDistinctOAuthStateAndRejectsReplay() throws {
+        let relay = try ConvexAuthentication.relayNonce()
+        let oauth = try ConvexAuthentication.relayNonce()
+        let code = try ConvexAuthentication.relayNonce()
+        checkEqual(relay.utf8.count, 43)
+        checkTrue(ConvexAuthentication.isHandoffToken(relay))
+        checkFalse(relay == oauth)
+        let callback = try XCTUnwrap(URL(string: "take://auth/convex?state=\(relay)&code=\(code)"))
+        var handoff = ConvexAppleHandoff(relayNonce: relay, oauthState: oauth)
+        let redemption = try handoff.consume(callback)
+        checkEqual(redemption.state, oauth)
+        checkFalse(redemption.state == relay)
+        checkEqual(redemption.code, code)
+        XCTAssertThrowsError(try handoff.consume(callback)) { checkTrue($0 is CancellationError) }
+    }
+
+    func testAppleRelayRejectsMalformedMismatchedAndExpiredCallbacks() throws {
+        let relay = try ConvexAuthentication.relayNonce()
+        let oauth = try ConvexAuthentication.relayNonce()
+        let code = try ConvexAuthentication.relayNonce()
+        for value in [
+            "take://auth/convex?code=\(code)",
+            "take://auth/convex?state=\(oauth)&code=\(code)",
+            "take://auth/convex?state=\(relay)&state=\(relay)&code=\(code)",
+            "take://auth/convex?state=\(relay)&code=\(code)&code=\(code)",
+            "take://auth/convex?state=\(relay)&code=short",
+            "take://auth/convex?state=\(relay)&code=\(code)&redirect=https://invalid.test",
+            "https://auth/convex?state=\(relay)&code=\(code)",
+            "take://auth/other?state=\(relay)&code=\(code)",
+            "take://user@auth/convex?state=\(relay)&code=\(code)",
+            "take://auth/convex?state=\(relay)&code=\(code)#fragment"
+        ] {
+            let callback = try XCTUnwrap(URL(string: value))
+            var handoff = ConvexAppleHandoff(relayNonce: relay, oauthState: oauth)
+            XCTAssertThrowsError(try handoff.consume(callback)) { checkTrue($0 is CancellationError) }
+            let valid = try XCTUnwrap(URL(string: "take://auth/convex?state=\(relay)&code=\(code)"))
+            XCTAssertThrowsError(try handoff.consume(valid)) { checkTrue($0 is CancellationError) }
+        }
+        var expired = ConvexAppleHandoff(relayNonce: relay, oauthState: oauth)
+        let valid = try XCTUnwrap(URL(string: "take://auth/convex?state=\(relay)&code=\(code)"))
+        XCTAssertThrowsError(try expired.consume(valid, now: expired.createdAt.addingTimeInterval(300))) { checkTrue($0 is CancellationError) }
+    }
+
+    func testConvexAuthV2EnvelopesDecodeWithoutLegacyTokenShape() throws {
+        let bundle = "\"accessToken\":\"access-test\",\"refreshToken\":\"refresh-test\",\"refreshTokenExpiresAt\":4102444800000,\"userId\":\"server-user\""
+        let complete = try JSONDecoder().decode(SignInResponse.self, from: Data("{\"status\":\"complete\",\"tokens\":{\(bundle)}}".utf8))
+        checkEqual(complete.status, "complete")
+        checkEqual(complete.tokens?.accessToken, "access-test")
+        checkEqual(complete.tokens?.refreshToken, "refresh-test")
+        checkTrue(complete.tokens?.isValid == true)
+        let refresh = try JSONDecoder().decode(RefreshResponse.self, from: Data("{\"kind\":\"rotated\",\"tokens\":{\(bundle)}}".utf8))
+        checkEqual(refresh.kind, "rotated")
+        checkEqual(refresh.tokens, complete.tokens)
+        let revoked = try JSONDecoder().decode(RefreshResponse.self, from: Data("{\"kind\":\"noSession\"}".utf8))
+        XCTAssertNil(revoked.tokens)
+        let rejected = try JSONDecoder().decode(SignInResponse.self, from: Data("{\"status\":\"error\",\"userError\":{\"error\":\"INVALID_CODE\"}}".utf8))
+        XCTAssertNil(rejected.tokens)
+        XCTAssertThrowsError(try JSONDecoder().decode(ConvexAuthTokens.self, from: Data("{\"token\":\"legacy\",\"refreshToken\":\"r\"}".utf8)))
+    }
+
+    func testConvexKeychainRotationPersistsBothTokensAndIsolatesOrigins() throws {
+        let store = ConvexSessionStore(account: "https://keychain-test-\(UUID().uuidString).convex.cloud")
+        let other = ConvexSessionStore(account: "https://keychain-test-\(UUID().uuidString).convex.cloud")
+        defer { try? store.clear(); try? other.clear() }
+        XCTAssertNil(try store.load())
+        let binding = UUID()
+        let original = ConvexStoredSession(bindingID: binding, tokens: ConvexAuthTokens(accessToken: "test-access-1", refreshToken: "test-refresh-1", refreshTokenExpiresAt: 4_102_444_800_000, userId: "test-user"), method: "apple")
+        try store.save(original)
+        checkEqual(try store.load(), original)
+        XCTAssertNil(try other.load())
+        let rotated = ConvexStoredSession(bindingID: binding, tokens: ConvexAuthTokens(accessToken: "test-access-2", refreshToken: "test-refresh-2", refreshTokenExpiresAt: 4_102_444_800_000, userId: "test-user"), method: "apple")
+        try store.save(rotated)
+        checkEqual(try store.load(), rotated)
+        try store.clear()
+        XCTAssertNil(try store.load())
     }
 
     func testPlaybackExpiryClearsPausedPlayerAndRequiresFreshAccess() async throws {

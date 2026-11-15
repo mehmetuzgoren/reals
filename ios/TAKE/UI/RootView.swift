@@ -1,5 +1,6 @@
 import AuthenticationServices
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @StateObject private var model = AppModel()
@@ -34,6 +35,8 @@ struct RootView: View {
 
 struct WelcomeView: View {
     @EnvironmentObject private var model: AppModel
+    @State private var signingIn = false
+    @State private var showDeveloperSignIn = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -51,32 +54,117 @@ struct WelcomeView: View {
                 }
                 PrimaryButton(title: "Explore Demo Mode", symbol: "play.fill") { Task { await model.enterDemo() } }
                 Text("Offline. Fictional friends. Clearly labeled sample clips. No account needed.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                SignInWithAppleButton(.signIn) { request in
-                    do { try model.prepareLive().prepareAppleRequest(request) }
-                    catch { model.error = error.localizedDescription }
-                } onCompletion: { result in
+                BrowserAppleSignInButton {
                     Task {
+                        signingIn = true
+                        defer { signingIn = false }
+                        let epoch = model.generation
                         do {
                             let authentication = try model.prepareLive()
-                            try await authentication.completeAppleSignIn(result.get())
+                            try await authentication.signInWithApple()
+                            guard epoch == model.generation, model.service === authentication else { return }
                             await model.establishSession()
-                        } catch { model.error = error.localizedDescription }
+                        } catch {
+                            if epoch == model.generation, !(error is CancellationError), (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
+                                model.error = "Couldn't sign in with Apple. Check your connection and try again."
+                            }
+                        }
                     }
                 }
-                .signInWithAppleButtonStyle(.white)
                 .frame(height: 54).clipShape(Capsule())
-                .disabled((try? LiveConfiguration.load()) == nil)
+                .disabled(signingIn || (try? LiveConfiguration.load()) == nil)
                 if (try? LiveConfiguration.load()) == nil { Text("Live sign-in isn't available in this build. The complete offline demo is ready to explore.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity) }
                 Text("Only approved friends who have posted can see your take. No public profiles. No followers.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
             .padding(24).frame(maxWidth: 580)
         }
         .takeScreen()
+        .sheet(isPresented: $showDeveloperSignIn) { DeveloperSignInView().environmentObject(model) }
+        .onAppear {
+            showDeveloperSignIn = ProcessInfo.processInfo.arguments.contains("--development-auth") && !ProcessInfo.processInfo.arguments.contains("--demo")
+        }
     }
     private func step(_ number: String, _ title: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
             Text(number).font(.caption.monospaced().bold()).foregroundStyle(TakeTheme.white).padding(10).background(TakeTheme.raised, in: Circle())
             VStack(alignment: .leading, spacing: 3) { Text(title).font(.headline); Text(text).font(.subheadline).foregroundStyle(TakeTheme.muted) }
+        }
+    }
+}
+
+struct BrowserAppleSignInButton: UIViewRepresentable {
+    let action: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .white)
+        button.addTarget(context.coordinator, action: #selector(Coordinator.signIn), for: .touchUpInside)
+        return button
+    }
+    func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
+        button.isEnabled = context.environment.isEnabled
+        context.coordinator.action = action
+    }
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action; super.init() }
+        @objc func signIn() { action() }
+    }
+}
+
+struct DeveloperSignInView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    var reauthenticate = false
+    var onAuthenticated: (() async -> Void)?
+    @State private var username = ""
+    @State private var password = ""
+    @State private var createAccount = false
+    @State private var signingIn = false
+    @State private var failure: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("Development deployments only. This screen isn't part of TAKE or Offline Demo Mode.")
+                    if reauthenticate { Text("Sign in to the same account again to confirm deletion. A refreshed session isn't enough.") }
+                }
+                Section("Development credentials") {
+                    TextField("Authentication username", text: $username).textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.username)
+                    SecureField("Password", text: $password).textContentType(createAccount ? .newPassword : .password)
+                    if !reauthenticate { Toggle("Create a development account", isOn: $createAccount) }
+                }
+                if let failure { Section { Text(failure).foregroundStyle(TakeTheme.muted) } }
+                Section {
+                    Button(signingIn ? "Signing in…" : reauthenticate ? "Sign in again to confirm" : createAccount ? "Create development account" : "Sign in to development") { Task { await signIn() } }
+                        .disabled(signingIn || username.isEmpty || password.isEmpty)
+                }
+            }
+            .disabled(signingIn)
+            .scrollContentBackground(.hidden).takeScreen().navigationTitle("Developer sign-in")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { password = ""; dismiss() }.disabled(signingIn) } }
+        }
+        .interactiveDismissDisabled(signingIn)
+        .onDisappear { password = "" }
+    }
+
+    private func signIn() async {
+        signingIn = true; failure = nil
+        defer { password = ""; signingIn = false }
+        let epoch = model.generation
+        do {
+            guard ProcessInfo.processInfo.arguments.contains("--development-auth"), !model.isDemo else { throw ServiceFailure.notConfigured }
+            let authentication = try model.prepareLive()
+            try await authentication.signInDevelopment(username: username, password: password, createAccount: !reauthenticate && createAccount, reauthenticate: reauthenticate)
+            guard epoch == model.generation, model.service === authentication else { return }
+            if let onAuthenticated { await onAuthenticated(); dismiss() }
+            else {
+                await model.establishSession()
+                if model.viewer != nil || model.needsOnboarding { dismiss() }
+            }
+        } catch {
+            guard epoch == model.generation else { return }
+            failure = (error as? ServiceFailure)?.message ?? "Development sign-in was refused. Check your credentials and that the server enables development authentication."
         }
     }
 }

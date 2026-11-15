@@ -42,8 +42,8 @@ final class AppModel: ObservableObject {
         catch { service = nil; UserDefaults.standard.removeObject(forKey: "TAKE.lastMode") }
     }
 
-    func prepareLive() throws -> any AppleAuthenticationService {
-        if let authentication = service as? any AppleAuthenticationService { return authentication }
+    func prepareLive() throws -> any LiveAuthenticationService {
+        if let authentication = service as? any LiveAuthenticationService { return authentication }
         let live = try ProductionService.make()
         service = live
         return live
