@@ -476,3 +476,59 @@ final class RealsV4Tests: XCTestCase {
         XCTAssertEqual(intent.minDurationMs, 3_000)
     }
 }
+
+#if canImport(UIKit) && DEBUG
+import AVFoundation
+
+@MainActor
+final class RealsExportPathTests: XCTestCase {
+    func testCameraLessDebugRecordingRunsTheRealExportPath() async throws {
+        let capture = CaptureController()
+        XCTAssertFalse(capture.cameraAvailable)
+        await capture.prepare()
+        XCTAssertEqual(capture.state, .ready, capture.errorMessage ?? "")
+        capture.start()
+        let deadline = Date().addingTimeInterval(30)
+        while capture.elapsed < 3.5, capture.state == .recording, Date() < deadline { try await Task.sleep(nanoseconds: 50_000_000) }
+        capture.stop()
+        while capture.clip == nil, capture.state != .failed, Date() < deadline { try await Task.sleep(nanoseconds: 100_000_000) }
+        let clip = try XCTUnwrap(capture.clip, capture.errorMessage ?? "export timed out")
+        XCTAssertEqual(clip.source, .camera)
+        XCTAssertEqual(clip.url.pathExtension, "mp4")
+
+        let asset = AVURLAsset(url: clip.url)
+        let duration = try await asset.load(.duration).seconds
+        XCTAssertGreaterThanOrEqual(duration, 3)
+        XCTAssertLessThanOrEqual(duration, 15)
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let video = try XCTUnwrap(videoTracks.first)
+        let audio = try XCTUnwrap(audioTracks.first)
+        let videoFormats = try await video.load(.formatDescriptions)
+        let audioFormats = try await audio.load(.formatDescriptions)
+        XCTAssertTrue(videoFormats.contains { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 })
+        XCTAssertTrue(audioFormats.contains { CMFormatDescriptionGetMediaSubType($0) == kAudioFormatMPEG4AAC })
+
+        let data = try Data(contentsOf: clip.url)
+        XCTAssertGreaterThan(data.count, 0)
+        XCTAssertLessThanOrEqual(data.count, 8 * 1_024 * 1_024)
+        let moov = try XCTUnwrap(data.range(of: Data("moov".utf8)))
+        let mdat = try XCTUnwrap(data.range(of: Data("mdat".utf8)))
+        XCTAssertLessThan(moov.lowerBound, mdat.lowerBound, "export must be fast-start")
+
+        let size = try await video.load(.naturalSize)
+        print("REALS_EXPORT_INFO bytes=\(data.count) duration=\(duration) size=\(Int(size.width))x\(Int(size.height))")
+        let encoded = data.base64EncodedString()
+        var index = 0
+        var start = encoded.startIndex
+        while start < encoded.endIndex {
+            let end = encoded.index(start, offsetBy: 2_000, limitedBy: encoded.endIndex) ?? encoded.endIndex
+            print(String(format: "REALS_EXPORT_DATA %05d ", index) + encoded[start..<end])
+            index += 1
+            start = end
+        }
+        print("REALS_EXPORT_END \(index)")
+        capture.shutdown()
+    }
+}
+#endif
