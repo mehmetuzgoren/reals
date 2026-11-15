@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { loadConfig, HARD_LIMITS } from '../src/config.mjs';
 import { createVerifierServer } from '../src/server.mjs';
+import { inspectMp4 } from '../src/mp4.mjs';
 import { fixtures } from './fixtures.mjs';
 
 const secret = 'test-only-service-secret-000000000000000000000';
@@ -76,7 +77,7 @@ test('real portrait H264/AAC bytes produce an exact body-bound result and decode
   assert.equal(result.status, 200, JSON.stringify(result.body));
   assert.deepEqual(Object.keys(result.body).sort(), ['sha256', 'durationMs', 'width', 'height', 'videoCodec', 'audioCodec', 'thumbnailBase64'].sort());
   assert.equal(result.body.sha256, hash(bytes));
-  assert.equal(result.body.durationMs, 1000);
+  assert.equal(result.body.durationMs, 3000);
   assert.equal(result.body.width, 96);
   assert.equal(result.body.height, 160);
   assert.equal(result.body.videoCodec, 'h264');
@@ -99,7 +100,7 @@ test('display rotation is applied: coded landscape rotated to portrait is valid'
 test('native-profile 30 FPS, 600-tick H264 with stereo AAC fully verifies', async () => {
   const result = await verify(media['native-stereo.mp4']);
   assert.equal(result.status, 200, JSON.stringify(result.body.error));
-  assert.equal(result.body.durationMs, 1000);
+  assert.equal(result.body.durationMs, 3000);
   assert.equal(result.body.width, 180);
   assert.equal(result.body.height, 320);
 });
@@ -115,6 +116,36 @@ test('exactly 15000ms at the native 600 tick timescale does not round to 15001ms
   assert.equal(result.status, 200, JSON.stringify(result.body));
   assert.equal(result.body.durationMs, 15_000);
 });
+
+for (const name of ['valid.mp4', 'at-minimum-600.mp4']) {
+  test(`exactly 3000ms is accepted at the minimum: ${name}`, async () => {
+    const result = await verify(media[name]);
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.equal(result.body.durationMs, 3000);
+    assert.equal(result.body.sha256, hash(media[name]));
+    assert.deepEqual(await readdir(directory), []);
+  });
+}
+
+test('a three-second sample duration with a positive start offset remains valid', async () => {
+  const timing = inspectMp4(media['at-minimum-offset.mp4'], HARD_LIMITS.durationMs);
+  assert.equal(timing.durations.reduce((ticks, duration) => ticks + BigInt(duration), 0n), 3n * BigInt(timing.timeScale));
+  const result = await verify(media['at-minimum-offset.mp4']);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.durationMs, 3001);
+  assert.deepEqual(await readdir(directory), []);
+});
+
+for (const [name, durationMicroseconds] of [['one-second.mp4', 1_000_000], ['below-minimum.mp4', 2_999_000], ['below-minimum-submillisecond.mp4', 2_999_990], ['below-minimum-offset.mp4', 2_999_990]]) {
+  test(`rejects video below the 3000ms minimum without a grace period: ${name}`, async () => {
+    const timing = inspectMp4(media[name], HARD_LIMITS.durationMs);
+    assert.equal(timing.durations.reduce((ticks, duration) => ticks + BigInt(duration), 0n) * 1_000_000n, BigInt(durationMicroseconds) * BigInt(timing.timeScale));
+    const result = await verify(media[name]);
+    assert.equal(result.status, 422, JSON.stringify(result.body));
+    assert.equal(result.body.error.code, 'INVALID_MEDIA');
+    assert.deepEqual(await readdir(directory), []);
+  });
+}
 
 for (const name of ['landscape.mp4', 'rotated-landscape.mp4', 'scaled-matrix.mp4', 'silent.mp4', 'no-audio.mp4', 'wrong-video.mp4', 'wrong-audio.mp4', 'over-limit.mp4', 'fast.mp4', 'truncated.mp4', 'corrupt.mp4', 'corrupt-tail.mp4', 'fake-duration.mp4', 'fake-final-sample.mp4', 'fake-edit-duration.mp4']) {
   test(`rejects actual invalid video fixture: ${name}`, async () => {

@@ -30,7 +30,7 @@ export async function fixtures() {
     files[name] = await readFile(path);
     return path;
   };
-  const video = async (name, { size = '96x160', duration = '1', audio = 'sine=frequency=440:sample_rate=48000', videoCodec = 'libx264', audioCodec = 'aac' } = {}) => ffmpeg(name, [
+  const video = async (name, { size = '96x160', duration = '3', audio = 'sine=frequency=440:sample_rate=48000', videoCodec = 'libx264', audioCodec = 'aac' } = {}) => ffmpeg(name, [
     '-f', 'lavfi', '-i', `testsrc2=size=${size}:rate=15`,
     ...(audio ? ['-f', 'lavfi', '-i', audio] : []),
     '-t', duration, '-c:v', videoCodec, '-threads', '1', '-pix_fmt', 'yuv420p',
@@ -38,7 +38,15 @@ export async function fixtures() {
   ]);
   try {
     await video('valid.mp4');
-    await ffmpeg('native-stereo.mp4', ['-f', 'lavfi', '-i', 'testsrc2=size=180x320:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '1', '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ac', '2', '-video_track_timescale', '600', '-movflags', '+faststart']);
+    await video('one-second.mp4', { duration: '1' });
+    await ffmpeg('native-stereo.mp4', ['-f', 'lavfi', '-i', 'testsrc2=size=180x320:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '3', '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ac', '2', '-video_track_timescale', '600', '-movflags', '+faststart']);
+    await ffmpeg('at-minimum-600.mp4', ['-i', join(directory, 'valid.mp4'), '-c', 'copy', '-video_track_timescale', '600']);
+    for (const [name, rate, duration] of [['below-minimum.mp4', '45000/2999', '2.999'], ['below-minimum-submillisecond.mp4', '4500000/299999', '2.99999']]) {
+      await ffmpeg(name, ['-f', 'lavfi', '-i', `testsrc2=size=96x160:rate=${rate}`, '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', duration, '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-video_track_timescale', rate.split('/')[0], '-movflags', '+faststart']);
+    }
+    for (const [name, source, movieScale] of [['below-minimum-offset.mp4', 'below-minimum-submillisecond.mp4', '1000'], ['at-minimum-offset.mp4', 'valid.mp4', '4500000']]) {
+      await ffmpeg(name, ['-itsoffset', '0.001', '-i', join(directory, source), '-i', join(directory, source), '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-video_track_timescale', '4500000', '-movie_timescale', movieScale, '-movflags', '+faststart']);
+    }
     const landscape = await video('landscape.mp4', { size: '160x96' });
     await ffmpeg('rotated.mp4', ['-display_rotation', '90', '-i', landscape, '-c', 'copy']);
     await ffmpeg('rotated-landscape.mp4', ['-display_rotation', '90', '-i', join(directory, 'valid.mp4'), '-c', 'copy']);

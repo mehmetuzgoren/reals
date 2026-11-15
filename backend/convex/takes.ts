@@ -3,9 +3,11 @@ import { query, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { viewer } from "./lib/auth";
 import { accessScope, authorizedContent, canViewOriginal, currentRound, receipt } from "./lib/access";
-import { originalDTO, pageLimit } from "./lib/dto";
+import { originalDTO, originalSummaryValidator, pageLimit } from "./lib/dto";
 import { notFound } from "./lib/errors";
 import { friendEdges } from "./friends";
+import { unlinkBattle } from "./lib/battles";
+import { visiblePage } from "./lib/pagination";
 
 export const feed = query({ args: { roundId: v.id("rounds"), cursor: v.union(v.string(), v.null()), limit: v.number() }, handler: async (ctx, args) => {
   const user = await viewer(ctx);
@@ -25,6 +27,29 @@ export const feed = query({ args: { roundId: v.id("rounds"), cursor: v.union(v.s
   for (const original of page) items.push(await originalDTO(ctx, user, original, scope));
   return { items, nextCursor: start + page.length < eligible.length ? page.at(-1)!._id : null };
 } });
+export const forYou = query({
+  args: { roundId: v.id("rounds"), cursor: v.union(v.string(), v.null()), limit: v.number() },
+  returns: v.object({ items: v.array(originalSummaryValidator), nextCursor: v.union(v.string(), v.null()) }),
+  handler: async (ctx, args) => {
+    const user = await viewer(ctx);
+    if ((await currentRound(ctx))?._id !== args.roundId || !(await receipt(ctx, user._id, args.roundId))) return { items: [], nextCursor: null };
+    const scope = accessScope();
+    let after = null;
+    if (args.cursor !== null) {
+      const id = ctx.db.normalizeId("originalTakes", args.cursor);
+      const original = id ? await ctx.db.get(id) : null;
+      if (!original || original.roundId !== args.roundId || original.audience !== "public" || original.authorId === user._id || !original.orderKey || !(await canViewOriginal(ctx, user, original, scope))) return notFound();
+      after = original.orderKey;
+    }
+    const page = await visiblePage(after, Math.min(8, pageLimit(args.limit)), (key, size) => ctx.db.query("originalTakes").withIndex("by_round_audience_deleted_order", q => {
+      const range = q.eq("roundId", args.roundId).eq("audience", "public").eq("deleted", false);
+      return key === null ? range : range.lt("orderKey", key);
+    }).order("desc").take(size), async original => original.authorId !== user._id && await canViewOriginal(ctx, user, original, scope));
+    const items = [];
+    for (const original of page.items) items.push(await originalDTO(ctx, user, original, scope));
+    return { items, nextCursor: page.hasMore ? page.items.at(-1)!._id : null };
+  },
+});
 export const detail = query({ args: { originalId: v.string() }, handler: async (ctx, args) => {
   const user = await viewer(ctx);
   const content = await authorizedContent(ctx, user, args.originalId, "original");
@@ -36,6 +61,7 @@ const deleteTake = mutation({ args: { id: v.id("originalTakes") }, handler: asyn
   const original = await ctx.db.get(args.id);
   if (!original || original.authorId !== user._id) return notFound();
   await ctx.db.patch(original._id, { deleted: true });
+  await unlinkBattle(ctx, original);
   const success = await receipt(ctx, user._id, original.roundId);
   if (success) await ctx.db.patch(success._id, { originalId: null });
   await ctx.scheduler.runAfter(0, internal.cleanup.original, { id: original._id });

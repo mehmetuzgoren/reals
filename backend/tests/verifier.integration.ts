@@ -18,7 +18,9 @@ let server: Server;
 let directory: string;
 let origin: string;
 let video: Buffer;
+let short: Buffer;
 let silent: Buffer;
+let silentAtMinimum: Buffer;
 let overlong: Buffer;
 let avatar: Buffer;
 const metadata = Buffer.from("private-avatar-integration-metadata");
@@ -34,8 +36,10 @@ beforeAll(async () => {
     "-f", "lavfi", "-i", "testsrc2=size=96x160:rate=30", "-f", "lavfi", "-i", audio,
     "-t", duration, "-c:v", "libx264", "-threads", "1", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-video_track_timescale", "600", "-movflags", "+faststart",
   ]);
-  video = await clip("valid.mp4", "1", "sine=frequency=440:sample_rate=48000");
+  video = await clip("valid.mp4", "3", "sine=frequency=440:sample_rate=48000");
+  short = await clip("short.mp4", "1", "sine=frequency=440:sample_rate=48000");
   silent = await clip("silent.mp4", "1", "anullsrc=r=48000:cl=stereo");
+  silentAtMinimum = await clip("silent-at-minimum.mp4", "3", "anullsrc=r=48000:cl=stereo");
   overlong = await clip("overlong.mp4", "15.1", "sine=frequency=440:sample_rate=48000");
   const jpeg = await ffmpeg("avatar.jpg", ["-f", "lavfi", "-i", "testsrc2=size=1200x800", "-frames:v", "1", "-c:v", "mjpeg", "-threads", "1", "-q:v", "4"]);
   const marker = Buffer.alloc(4);
@@ -89,7 +93,7 @@ describe("actual verifier HTTP and decoder through Convex publication", () => {
     expect((await alex.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
     const published = await alex.client.action(api.uploads.finalize, { uploadId: a.uploadId });
     expect(published).toMatchObject({ state: "published", failure: null, receipt: { roundId } });
-    expect((await alex.client.query(api.rounds.today, {})).ownOriginal).toMatchObject({ durationMs: 1000 });
+    expect((await alex.client.query(api.rounds.today, {})).ownOriginal).toMatchObject({ durationMs: 3000 });
     await expect(playback(blair.client, published.originalId!, "original")).rejects.toThrow("NOT_FOUND");
     const b = await begin(blair.client, roundId);
     expect((await upload(blair.client, b.uploadUrl, video)).status).toBe(200);
@@ -116,7 +120,7 @@ describe("actual verifier HTTP and decoder through Convex publication", () => {
   it("rejects real silent, overlong and truncated clips without any publication or unlock", async () => {
     const t = liveBackend();
     const roundId = await round(t);
-    for (const [index, bytes] of [silent, overlong, video.subarray(0, 128)].entries()) {
+    for (const [index, bytes] of [silent, overlong, video.subarray(0, 128), short, silentAtMinimum].entries()) {
       const owner = await user(t, `invalid_${index}`);
       const intent = await begin(owner.client, roundId);
       expect((await upload(owner.client, intent.uploadUrl, bytes)).status).toBe(200);

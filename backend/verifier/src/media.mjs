@@ -299,6 +299,8 @@ function validateVideoDecode(result, info, config) {
     if (millisecondsFromTicks(end, info.timeBase) > config.maxDurationMs) throw invalidMedia();
     previous = frame.index;
   }
+  const durationTicks = Math.min(end - frames[0].pts, info.packets.reduce((ticks, packet) => ticks + packet.duration, 0));
+  if (BigInt(durationTicks) * BigInt(info.timeBase.numerator) * 1000n < BigInt(HARD_LIMITS.minDurationMs) * BigInt(info.timeBase.denominator)) throw invalidMedia();
   const decodedDuration = end * info.timeBase.numerator / info.timeBase.denominator;
   if (Math.abs(decodedDuration - Number(info.video.duration)) > 0.002) throw invalidMedia();
   if (Math.abs(frames.length / decodedDuration - info.fps) > 0.1) throw invalidMedia();

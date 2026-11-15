@@ -20,7 +20,7 @@ async function verify(path: string, bytes: ArrayBuffer, hash: string): Promise<R
   try {
     response = await fetch(`${origin}${path}`, { method: "POST", headers: { "Authorization": `Bearer ${secret}`, "Content-Type": "application/octet-stream", "X-Content-SHA256": hash }, body: bytes, signal: AbortSignal.timeout(45000), redirect: "error" });
   } catch { fail("PROCESSING_UNAVAILABLE", "Trusted media verification is unavailable", true); }
-  if (response.status === 422 || response.status === 413 || response.status === 415) fail("INVALID_MEDIA", "Upload a usable portrait MP4 with audio, at most 15 seconds");
+  if (response.status === 422 || response.status === 413 || response.status === 415) fail("INVALID_MEDIA", "Upload a usable portrait MP4 with audio, between 3 and 15 seconds");
   if (!response.ok) fail("PROCESSING_UNAVAILABLE", "Trusted media verification is unavailable", true);
   const text = await response.text();
   if (text.length > 2 * 1024 * 1024) fail("INVALID_MEDIA", "Invalid verifier output");
@@ -33,7 +33,7 @@ async function verify(path: string, bytes: ArrayBuffer, hash: string): Promise<R
 export async function verifyVideo(bytes: ArrayBuffer, hash: string) {
   const data = await verify("/verify", bytes, hash);
   const { durationMs, width, height } = data;
-  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0 || durationMs > 15000 ||
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs < 3000 || durationMs > 15000 ||
     typeof width !== "number" || !Number.isInteger(width) || width <= 0 || width > 2160 ||
     typeof height !== "number" || !Number.isInteger(height) || height <= width || height > 4096 || data.videoCodec !== "h264" || data.audioCodec !== "aac") {
     fail("INVALID_MEDIA", "Trusted verification rejected this video");

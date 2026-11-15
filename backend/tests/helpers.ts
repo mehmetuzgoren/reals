@@ -22,7 +22,7 @@ export function setup() {
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
     const hash = new Headers(init?.headers).get("X-Content-SHA256");
     if (String(_input).endsWith("/verify-avatar")) return Response.json({ sha256: hash, width: 64, height: 64, mimeType: "image/jpeg", imageBase64: "/9j/2Q==" });
-    return Response.json({ sha256: hash, durationMs: 1000, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac", thumbnailBase64: "/9j/2Q==" });
+    return Response.json({ sha256: hash, durationMs: 3000, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac", thumbnailBase64: "/9j/2Q==" });
   });
   const t = convexTest({ schema, modules, transactionLimits: true });
   registerCore(t);

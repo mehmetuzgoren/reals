@@ -19,13 +19,8 @@ export const issue = internalMutation({ args: { contentId: v.string(), kind, ass
   const user = await viewer(ctx);
   const content = await authorizedContent(ctx, user, args.contentId, args.kind);
   if (args.asset === "thumbnail" && !content.thumbnailStorageId) return notFound();
-  const grants = await ctx.db.query("mediaGrants").withIndex("by_viewer", q => q.eq("viewerId", user._id)).collect();
-  let active = 0;
-  for (const grant of grants) {
-    if (grant.expiresAt <= Date.now()) await ctx.db.delete(grant._id);
-    else active++;
-  }
-  if (active >= 200) fail("LIMIT_REACHED", "Too many active playback requests", true);
+  const grants = await ctx.db.query("mediaGrants").withIndex("by_viewer_expiry", q => q.eq("viewerId", user._id).gt("expiresAt", Date.now())).take(200);
+  if (grants.length >= 200) fail("LIMIT_REACHED", "Too many active playback requests", true);
   const expiresAt = Date.now() + 60000;
   const id = await ctx.db.insert("mediaGrants", { ...args, viewerId: user._id, expiresAt });
   return { id, expiresAt };

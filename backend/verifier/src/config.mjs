@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 export const HARD_LIMITS = Object.freeze({
   videoBytes: 20 * 1024 * 1024,
   avatarBytes: 2 * 1024 * 1024,
+  minDurationMs: 3000,
   durationMs: 15_000,
   dimension: 4096,
   avatarDimension: 2048,

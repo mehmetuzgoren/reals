@@ -2,6 +2,8 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export const kind = v.union(v.literal("original"), v.literal("reply"));
+export const audience = v.union(v.literal("friends"), v.literal("public"));
+export const voteSide = v.union(v.literal("left"), v.literal("right"));
 export const failure = v.object({ code: v.string(), message: v.string(), retryable: v.boolean() });
 export const option = v.object({ id: v.string(), label: v.string() });
 export const preferences = v.object({ dailyQuestion: v.boolean(), directReply: v.boolean() });
@@ -29,9 +31,12 @@ export default defineSchema({
   currentRound: defineTable({ key: v.literal("global"), roundId: v.id("rounds") }).index("by_key", ["key"]),
   originalTakes: defineTable({
     authorId: v.id("users"), roundId: v.id("rounds"), optionId: v.string(), publishedAt: v.number(),
+    audience: v.optional(audience), battleId: v.optional(v.id("battles")), orderKey: v.optional(v.string()),
     durationMs: v.number(), videoStorageId: v.id("_storage"), thumbnailStorageId: v.union(v.id("_storage"), v.null()),
     deleted: v.boolean(),
   }).index("by_round_author", ["roundId", "authorId"]).index("by_round_time", ["roundId", "publishedAt"])
+    .index("by_round_audience_deleted_order", ["roundId", "audience", "deleted", "orderKey"])
+    .index("by_round_audience_deleted_battle_option_time", ["roundId", "audience", "deleted", "battleId", "optionId", "publishedAt"])
     .index("by_author", ["authorId"]).index("by_video", ["videoStorageId"]).index("by_thumbnail", ["thumbnailStorageId"]),
   submissionReceipts: defineTable({
     userId: v.id("users"), roundId: v.id("rounds"), publishedAt: v.number(), originalId: v.union(v.id("originalTakes"), v.null()),
@@ -44,6 +49,7 @@ export default defineSchema({
     .index("by_video", ["videoStorageId"]).index("by_thumbnail", ["thumbnailStorageId"]),
   uploads: defineTable({
     ownerId: v.id("users"), requestId: v.string(), kind, roundId: v.id("rounds"),
+    audience: v.optional(audience),
     optionId: v.union(v.string(), v.null()), originalId: v.union(v.id("originalTakes"), v.null()),
     expiresAt: v.number(), createdAt: v.number(),
     state: v.union(v.literal("uploading"), v.literal("processing"), v.literal("published"), v.literal("failed"), v.literal("cancelled")),
@@ -63,13 +69,33 @@ export default defineSchema({
   mediaGrants: defineTable({
     tokenHash: v.string(), viewerId: v.id("users"), contentId: v.string(), kind,
     asset: v.union(v.literal("video"), v.literal("thumbnail")), expiresAt: v.number(),
-  }).index("by_hash", ["tokenHash"]).index("by_expiry", ["expiresAt"]).index("by_viewer", ["viewerId"]),
+  }).index("by_hash", ["tokenHash"]).index("by_expiry", ["expiresAt"]).index("by_viewer", ["viewerId"])
+    .index("by_viewer_expiry", ["viewerId", "expiresAt"]),
   deviceTokens: defineTable({
     userId: v.id("users"), installationId: v.string(), token: v.string(), platform: v.literal("ios"),
     notificationsEnabled: v.boolean(), updatedAt: v.number(),
   }).index("by_owner_installation", ["userId", "installationId"]).index("by_user", ["userId"])
     .index("by_token", ["token"]),
-  reports: defineTable({ reporterId: v.id("users"), contentId: v.string(), kind, reason: v.string(), createdAt: v.number() })
+  likes: defineTable({ contentId: v.string(), kind, userId: v.id("users"), createdAt: v.number() })
+    .index("by_content_kind_user", ["contentId", "kind", "userId"]).index("by_user", ["userId"]),
+  likeCounts: defineTable({ contentId: v.string(), kind, count: v.number() })
+    .index("by_content_kind", ["contentId", "kind"]),
+  comments: defineTable({
+    contentId: v.string(), kind, authorId: v.id("users"), text: v.string(), createdAt: v.number(),
+    deleted: v.boolean(), orderKey: v.string(),
+  }).index("by_content_kind_deleted_order", ["contentId", "kind", "deleted", "orderKey"])
+    .index("by_content_kind", ["contentId", "kind"]).index("by_author", ["authorId"]),
+  commentCounts: defineTable({ contentId: v.string(), kind, authorId: v.id("users"), count: v.number() })
+    .index("by_content_kind_author", ["contentId", "kind", "authorId"]),
+  commentRateWindows: defineTable({ userId: v.id("users"), timestamps: v.array(v.number()) })
+    .index("by_user", ["userId"]),
+  battles: defineTable({
+    roundId: v.id("rounds"), leftId: v.id("originalTakes"), rightId: v.id("originalTakes"),
+    leftVotes: v.number(), rightVotes: v.number(),
+  }),
+  battleVotes: defineTable({ battleId: v.id("battles"), userId: v.id("users"), side: voteSide })
+    .index("by_battle_user", ["battleId", "userId"]).index("by_user", ["userId"]),
+  reports: defineTable({ reporterId: v.id("users"), contentId: v.string(), kind: v.union(kind, v.literal("comment")), reason: v.string(), createdAt: v.number() })
     .index("by_target", ["contentId"]).index("by_reporter", ["reporterId"]),
   notificationJobs: defineTable({
     kind: v.union(v.literal("daily"), v.literal("reply")), roundId: v.id("rounds"),

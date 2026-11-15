@@ -3,15 +3,18 @@ import { action, query, mutation, internalMutation } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { kind, failure } from "./schema";
+import { kind, failure, audience } from "./schema";
 import { viewer } from "./lib/auth";
-import { canReply, currentRound, receipt } from "./lib/access";
+import { canReply, currentRound, originalAudience, receipt } from "./lib/access";
+import { pairOriginal } from "./lib/battles";
+import { orderKey } from "./lib/pagination";
 import { receiptDTO } from "./lib/dto";
 import { bounded, fail, httpOrigin, notFound } from "./lib/errors";
 import type { Failure } from "./lib/errors";
 import { sha256, randomToken, verifyVideo } from "./lib/verification";
 
 export const MAX_BYTES = 8 * 1024 * 1024;
+export const MIN_DURATION_MS = 3000;
 export const MAX_DURATION_MS = 15000;
 const leaseMs = 120000;
 
@@ -48,13 +51,16 @@ async function discard(ctx: MutationCtx, upload: Doc<"uploads">, error: Failure,
   await ctx.db.patch(upload._id, { state, failure: error, storageId: null, sha256: null, lease: null, leaseUntil: 0 });
 }
 
-export const begin = mutation({ args: { requestId: v.string(), kind, roundId: v.id("rounds"), optionId: v.union(v.string(), v.null()), originalId: v.union(v.id("originalTakes"), v.null()) }, handler: async (ctx, args) => {
+export const begin = mutation({ args: { requestId: v.string(), kind, roundId: v.id("rounds"), optionId: v.union(v.string(), v.null()), originalId: v.union(v.id("originalTakes"), v.null()), audience: v.optional(audience) },
+  returns: v.object({ uploadId: v.id("uploads"), uploadUrl: v.string(), expiresAt: v.number(), minDurationMs: v.literal(3000), maxDurationMs: v.literal(15000), maxBytes: v.number() }), handler: async (ctx, args) => {
   const user = await viewer(ctx);
+  if (args.kind === "reply" && args.audience !== undefined) fail("INVALID_ARGUMENT", "Replies inherit their parent's audience");
   const requestId = bounded(args.requestId, 8, 128, "request ID");
   const origin = httpOrigin();
   let upload = await ctx.db.query("uploads").withIndex("by_owner_request", q => q.eq("ownerId", user._id).eq("requestId", requestId)).unique();
   if (upload) {
-    if (upload.kind !== args.kind || upload.roundId !== args.roundId || upload.optionId !== args.optionId || upload.originalId !== args.originalId) fail("CONFLICT", "This request ID belongs to another publication");
+    if (upload.kind !== args.kind || upload.roundId !== args.roundId || upload.optionId !== args.optionId || upload.originalId !== args.originalId ||
+      (args.kind === "original" && (upload.audience ?? "friends") !== (args.audience ?? "friends"))) fail("CONFLICT", "This request ID belongs to another publication");
     if (upload.state !== "published" && upload.expiresAt <= Date.now()) fail("UPLOAD_EXPIRED", "Start a new upload");
   } else {
     await eligible(ctx, user, args);
@@ -64,13 +70,14 @@ export const begin = mutation({ args: { requestId: v.string(), kind, roundId: v.
     ];
     if (active.length >= 3) fail("LIMIT_REACHED", "Too many active uploads");
     const id = await ctx.db.insert("uploads", {
-      ...args, requestId, ownerId: user._id, expiresAt: Date.now() + 600000, createdAt: Date.now(),
+      ...args, audience: args.kind === "original" ? args.audience ?? "friends" : originalAudience((await ctx.db.get(args.originalId!))!),
+      requestId, ownerId: user._id, expiresAt: Date.now() + 600000, createdAt: Date.now(),
       state: "uploading", storageId: null, sha256: null, byteCount: 0, lease: null, leaseUntil: 0, failure: null,
       publishedOriginalId: null, publishedReplyId: null,
     });
     upload = (await ctx.db.get(id))!;
   }
-  return { uploadId: upload._id, uploadUrl: `${origin}/v1/uploads/${upload._id}/video`, expiresAt: upload.expiresAt, maxDurationMs: MAX_DURATION_MS, maxBytes: MAX_BYTES };
+  return { uploadId: upload._id, uploadUrl: `${origin}/v1/uploads/${upload._id}/video`, expiresAt: upload.expiresAt, minDurationMs: MIN_DURATION_MS, maxDurationMs: MAX_DURATION_MS, maxBytes: MAX_BYTES } as const;
 } });
 export const status = query({ args: { uploadId: v.string() }, handler: async (ctx, args) => {
   const { upload } = await owned(ctx, args.uploadId);
@@ -141,7 +148,8 @@ export const commit = internalMutation({ args: {
   if (upload.state !== "processing" || upload.lease !== args.lease || upload.leaseUntil <= Date.now()) fail("CONFLICT", "Processing attempt expired", true);
   let invalid: Failure | null = null;
   if (upload.expiresAt <= Date.now()) invalid = { code: "UPLOAD_EXPIRED", message: "Upload expired", retryable: false };
-  if (!upload.storageId || args.sha256 !== upload.sha256 || !Number.isFinite(args.durationMs) || args.durationMs <= 0 || args.durationMs > MAX_DURATION_MS || args.width <= 0 || args.height <= args.width || args.height > 4096 || args.width > 2160) invalid = { code: "INVALID_MEDIA", message: "A valid portrait video of at most 15 seconds is required", retryable: false };
+  if (!upload.storageId || args.sha256 !== upload.sha256 || !Number.isFinite(args.durationMs) || args.durationMs < MIN_DURATION_MS || args.durationMs > MAX_DURATION_MS ||
+    !Number.isInteger(args.width) || !Number.isInteger(args.height) || args.width <= 0 || args.height <= args.width || args.height > 4096 || args.width > 2160) invalid = { code: "INVALID_MEDIA", message: "A valid portrait video between 3 and 15 seconds is required", retryable: false };
   if (!invalid) {
     try { await eligible(ctx, user, upload); }
     catch (error) {
@@ -158,8 +166,10 @@ export const commit = internalMutation({ args: {
   let publishedReplyId = null;
   const content = { authorId: user._id, roundId: upload.roundId, publishedAt, durationMs: args.durationMs, videoStorageId: upload.storageId!, thumbnailStorageId: args.thumbnailStorageId, deleted: false };
   if (upload.kind === "original") {
-    publishedOriginalId = await ctx.db.insert("originalTakes", { ...content, optionId: upload.optionId! });
+    publishedOriginalId = await ctx.db.insert("originalTakes", { ...content, optionId: upload.optionId!, audience: upload.audience ?? "friends" });
+    await ctx.db.patch(publishedOriginalId, { orderKey: orderKey(publishedAt, (await ctx.db.get(publishedOriginalId))!._creationTime, publishedOriginalId) });
     await ctx.db.insert("submissionReceipts", { userId: user._id, roundId: upload.roundId, publishedAt, originalId: publishedOriginalId });
+    await pairOriginal(ctx, (await ctx.db.get(publishedOriginalId))!);
   } else {
     publishedReplyId = await ctx.db.insert("videoReplies", { ...content, originalId: upload.originalId! });
     const parent = (await ctx.db.get(upload.originalId!))!;
