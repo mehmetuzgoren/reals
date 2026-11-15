@@ -96,17 +96,13 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
             throw Self.unauthenticated
         }
         let revision = tokenRevision
-        do {
-            let token = try await user.getIDToken(forcingRefresh: true)
-            guard revision == tokenRevision, auth.currentUser?.uid == user.uid, boundUID == user.uid else {
-                throw Self.unauthenticated
-            }
-            onIdToken?(token)
-            return token
-        } catch {
-            guard revision == tokenRevision, auth.currentUser?.uid == user.uid, boundUID == user.uid else { throw CancellationError() }
-            throw handleTokenFailure(error)
-        }
+        let token = try await Self.retrieveToken(
+            { try await user.getIDToken(forcingRefresh: true) },
+            isCurrent: { revision == self.tokenRevision && self.auth.currentUser?.uid == user.uid && self.boundUID == user.uid },
+            onFailure: handleTokenFailure
+        )
+        onIdToken?(token)
+        return token
     }
 
     func resetTokenBinding() {
@@ -141,16 +137,12 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
                 }
             }
         }
-        do {
-            let token = try await user.getIDToken(forcingRefresh: true)
-            guard revision == tokenRevision, auth.currentUser?.uid == user.uid else {
-                throw Self.unauthenticated
-            }
-            return FirebaseSession(uid: user.uid, idToken: token)
-        } catch {
-            onIdToken(nil)
-            throw Self.failure(error)
-        }
+        let token = try await Self.retrieveToken(
+            { try await user.getIDToken(forcingRefresh: true) },
+            isCurrent: { revision == self.tokenRevision && self.auth.currentUser?.uid == user.uid && self.boundUID == user.uid },
+            onFailure: handleTokenFailure
+        )
+        return FirebaseSession(uid: user.uid, idToken: token)
     }
 
     private func tokenChanged(uid: String?) async {
@@ -162,12 +154,24 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
         }
         let revision = tokenRevision
         do {
-            let token = try await user.getIDToken(forcingRefresh: false)
-            guard revision == tokenRevision, auth.currentUser?.uid == boundUID else { return }
+            let token = try await Self.retrieveToken(
+                { try await user.getIDToken(forcingRefresh: false) },
+                isCurrent: { revision == self.tokenRevision && self.auth.currentUser?.uid == boundUID && self.boundUID == boundUID },
+                onFailure: handleTokenFailure
+            )
             onIdToken?(token)
+        } catch {}
+    }
+
+    static func retrieveToken(_ operation: () async throws -> String, isCurrent: () -> Bool,
+                              onFailure: (Error) -> ServiceFailure) async throws -> String {
+        do {
+            let token = try await operation()
+            guard isCurrent() else { throw CancellationError() }
+            return token
         } catch {
-            guard revision == tokenRevision, auth.currentUser?.uid == boundUID else { return }
-            _ = handleTokenFailure(error)
+            guard isCurrent() else { throw CancellationError() }
+            throw onFailure(error)
         }
     }
 

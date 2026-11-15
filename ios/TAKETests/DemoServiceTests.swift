@@ -270,4 +270,28 @@ final class DemoServiceTests: XCTestCase {
         checkTrue(FileManager.default.fileExists(atPath: file.path))
         model.clearDraft()
     }
+
+    func testCachedAndForcedTokenBoundaryNotifiesCurrentFailureOnly() async throws {
+        var failureCalls = 0
+        let failure: (Error) -> ServiceFailure = { error in
+            failureCalls += 1
+            return ServiceFailure(code: FirebaseAuthentication.isTransientTokenError(error) ? "AUTH_NETWORK" : "UNAUTHENTICATED", message: "Unavailable", retryable: true)
+        }
+        do {
+            _ = try await FirebaseAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { true }, onFailure: failure)
+            XCTFail("A cached refresh must fail closed")
+        } catch { checkEqual((error as? ServiceFailure)?.code, "AUTH_NETWORK") }
+        checkEqual(failureCalls, 1)
+        do {
+            _ = try await FirebaseAuthentication.retrieveToken({ throw URLError(.notConnectedToInternet) }, isCurrent: { false }, onFailure: failure)
+            XCTFail("An old binding must be cancelled")
+        } catch { checkTrue(error is CancellationError) }
+        do {
+            _ = try await FirebaseAuthentication.retrieveToken({ "older-binding-token" }, isCurrent: { false }, onFailure: failure)
+            XCTFail("An old binding must not return a token")
+        } catch { checkTrue(error is CancellationError) }
+        checkEqual(failureCalls, 1)
+        checkEqual(try await FirebaseAuthentication.retrieveToken({ "current-binding-token" }, isCurrent: { true }, onFailure: failure), "current-binding-token")
+        checkEqual(failureCalls, 1)
+    }
 }
