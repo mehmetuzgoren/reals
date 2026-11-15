@@ -1,6 +1,6 @@
 # Reals privacy and product invariants
 
-These are acceptance requirements, not claims that every lane has passed. The live backend is currently v3; the public/social extension's [v4 shapes are published](wire-v4.md), but its implementation evidence remains pending. See the [acceptance matrix](../verification/acceptance.md).
+These are acceptance requirements, not claims that every lane has passed. The [v4 backend](wire-v4.md) is deployed at `902c8f8`; independent live evidence covers signed-in no-media locks/social/session behavior and missing-ID interaction denials, not positive publication or real private-content isolation. See the [acceptance matrix](../verification/acceptance.md).
 
 ## Identity and publication
 
@@ -32,11 +32,11 @@ For You returns public originals only, newest first, excluding the viewer's own 
 
 One like per viewer/item is transactional; no liker-list endpoint is requested. Comments are trimmed plain text, 1–300 characters, rate-limited and deletable by commenter or content author. Report/block rules apply to comments too. Battles pair eligible unpaired public originals with different authors/options; viewers must see both sides. Authors cannot vote, a viewer has one changeable vote, and deleting either side deletes the battle/votes. Content/account deletion also cascades likes/comments/votes as applicable.
 
-These are v4 gates, not results from the older v3 tests or demo images. The published function/DTO contract is recorded separately from the pending implementation/deployment.
+These are v4 gates, not results from older v3 tests or demo images. Implementation/deployment exists, but positive public/friends interaction, filtered-count and deletion-cascade acceptance still needs published fixtures.
 
 ## Media and revocation
 
-Uploads are owner-private intents bound to actual authenticated bytes. Clients cannot attach storage IDs, replace bound bytes or submit trusted verification metadata. Missing/failed verification stays closed. V4 requires 3–15 seconds; the current deployed v3 enforces a positive duration ≤15 seconds. Application video remains ≤8 MiB.
+Uploads are owner-private intents bound to actual authenticated bytes. Clients cannot attach storage IDs, replace bound bytes or submit trusted verification metadata. Missing/failed verification stays closed. The deployed v4 source requires 3–15 seconds; actual hosted publication/media acceptance remains blocked by the unhosted verifier. Application video remains ≤8 MiB.
 
 Playback uses opaque ≤60-second grants; serve bytes through the authorized HTTP handler, never permanent storage redirects. Recheck the bound viewer's current access on every GET/HEAD/Range, including new-round locks, remove/block, account disabling/deletion and expiry. Use private/no-store, correct content type/length and byte ranges. The current generic HTTP denial is exactly `{ failure: { code: "NOT_FOUND", message: "Not found", retryable: false } }`; extra hidden fields are not acceptable.
 

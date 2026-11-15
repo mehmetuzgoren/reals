@@ -38,7 +38,7 @@ The app registers the internal `take` callback scheme. Apple browser auth uses `
 
 ## Live development deployment
 
-Development deployed backend `a48095d8730507a63bc99f033ad69d799613d579` to project `mehmet-uzgoren/reals`, deployment `first-mandrill-982` on November 15, 2026. SDK: `https://first-mandrill-982.convex.cloud`; HTTP: `https://first-mandrill-982.convex.site`. The boundary probe independently reaches its deployed auth/relay/media routes. A root-page 404 is not a deployment-health test.
+Development deployed backend v4 `902c8f84c1abf998728e0c5c4b566a614b9e3aca` to project `mehmet-uzgoren/reals`, deployment `first-mandrill-982` on November 15, 2026, replacing v3 `a48095d`. SDK: `https://first-mandrill-982.convex.cloud`; HTTP: `https://first-mandrill-982.convex.site`. Independent live checks reached its auth/relay/media guards and signed-in lock/social/session/v4-denial paths; they did not publish video. A root-page 404 is not a deployment-health test.
 
 Dependencies at this source: Convex **1.50.0**, Convex Auth **2.0.0**, Temporal polyfill **0.5.1**, Vitest **5.1.0**. On Node 24:
 
@@ -78,7 +78,7 @@ Access tokens default to 60 seconds; refresh securely through Convex Auth and re
 
 The verifier is **not hosted**. Live publication cannot create a receipt without it. `MEDIA_VERIFIER_ORIGIN` must eventually be the worker's HTTPS origin; `MEDIA_VERIFIER_SECRET` must match its server-only `VERIFY_SHARED_SECRET` (at least 32 random characters). Do not set a pretend worker URL or accept client metadata as verification.
 
-The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and ≤15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. The [published v4 contract](wire-v4.md) adds `minDurationMs: 3000`; its implementation/ready head is pending, not proved by the live v3 deployment.
+The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and 3,000–15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. The [deployed v4 contract](wire-v4.md) returns `minDurationMs: 3000`; no successful hosted media publication has been verified.
 
 The worker uses actual stored bytes plus `X-Content-SHA256` at authenticated `POST /verify` / `POST /verify-avatar`. It is a separate Node 24 / FFmpeg service, not code that runs inside Convex:
 
@@ -97,4 +97,4 @@ Supply `VERIFY_SHARED_SECRET` securely before starting and use FFmpeg/FFprobe 6.
 
 The internal development seed requires explicit `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`; restore the latter to false afterward. It creates three eligible round-plan dates, not users, friendships, private media or the deployed probe's fixture. Today is eligible only before its configured local window ends; openings persist their original window and refuse expired/stale plans.
 
-A fresh empty deployment needs no backfill. Reused draft rows need reviewed identity migration and `windowStartsAt` / `windowEndsAt` backfill from the original zoned plan/policy before applying the strict schema. Never widen windows or backdate openings to bypass it. V4's published rule treats a missing legacy stored audience as friends, never public; returned summaries still require the new fields. Ready-head migration guidance remains necessary before upgrading live data.
+A fresh empty deployment needs no backfill. Reused draft rows need reviewed identity migration and `windowStartsAt` / `windowEndsAt` backfill from the original zoned plan/policy before applying the strict schema. Never widen windows or backdate openings to bypass it. V4's optional stored audience fields are a compatible extension: missing legacy audience means friends, never public; returned summaries still require the new fields. Follow `backend/DEPLOYMENT.md` at the exact upgrade head; this QA pass performed no migration.

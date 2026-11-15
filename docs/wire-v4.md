@@ -1,6 +1,6 @@
 # Reals v4 wire contract
 
-These exact shapes were published by the backend owner on November 15, 2026 for the eight-screen mock extension. They are an implementation contract, **not deployed behavior**: the live checkpoint remains v3 at `a48095d`. A ready v4 source/deployment and matching native artifact are still required. Existing Convex Auth, nullable envelopes, receipt rules and media grants remain unchanged.
+These exact shapes were published by the backend owner on November 15, 2026 for the eight-screen mock extension and implemented at `902c8f84c1abf998728e0c5c4b566a614b9e3aca`. Development confirmed that head deployed to first-mandrill-982. Independent live checks cover locks and negative guards without published media, **not every successful response below**. Matching native-artifact and published-content acceptance remain required. Existing Convex Auth, nullable envelopes, receipt rules and media grants remain unchanged.
 
 ## Upload and audience
 
@@ -21,7 +21,7 @@ All existing v3 summary fields remain required. `PublicProfile` stays `{ id, use
 | Original | `audience: "friends" | "public"`, `likeCount: number`, `viewerLiked: boolean`, `visibleCommentCount: number`, `battle: { battleId: string, opponent: PublicProfile } | null` |
 | Reply | `audience: "friends" | "public"`, `likeCount: number`, `viewerLiked: boolean`, `visibleCommentCount: number` |
 
-Missing legacy stored audience means friends, never public. This storage migration rule does not make returned DTO fields optional. Adopt a ready head's exact serializers before extending the strict v3 probe.
+Missing legacy stored audience means friends, never public. This compatible storage extension does not make returned DTO fields optional. Extend the strict v3 positive-content probe against the actual v4 serializers before using it for published-v4 acceptance.
 
 ## Feed and visibility
 

@@ -1,6 +1,6 @@
 # Independent Reals acceptance matrix
 
-These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. [V4 shapes are published](../docs/wire-v4.md); implementation/deployment acceptance remains pending.
+These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. [V4 is deployed](../docs/wire-v4.md), but independent live evidence covers only no-media lock/social/session and missing-ID interaction guards, not complete published-content acceptance.
 
 | ID | Scenario and required result | Evidence lane |
 | --- | --- | --- |
