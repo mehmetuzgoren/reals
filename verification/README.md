@@ -1,19 +1,40 @@
-# Independent integration probe
+# Independent Reals probes
 
-`take-probe.mjs` is a dependency-free Node 24 client for the **real deployed** Convex HTTP Functions API and private media route. It does not implement the app's authorization policy, substitute demo identities, upload media, or seed a database. It creates short-lived playback grant records and reads bounded media ranges; otherwise it does not mutate fixture state.
+Both Node 24 runners use real HTTPS endpoints, refuse redirects and log static scenario IDs plus PASS/FAIL only. They never log credentials, IDs, response bodies, grants, private metadata or fixture names. Fake transports in unit tests verify the tools, not the product.
 
-## Fixture prerequisites
+## Live bootstrap boundary probe
 
-Use a dedicated non-production deployment with the actual backend source. Through its trusted internal seed/setup lane, create:
+```sh
+node verification/deployment-probe.mjs verification/deployment.example.json
+```
 
-- Alex's published original and Blair's single published reply in the current round, with valid playable private MP4 bytes.
-- Approved Alex↔Blair, Alex↔Casey, Blair↔Casey, and Alex↔Dana relationships; no Blair↔Dana relationship or blocks.
-- Successful current-round originals/receipts for Casey and Dana.
-- A separate locked profile with no current-round receipt, approved friendship with Alex, and no original. This identity must be valid, not unauthenticated.
+The checked-in example names the public `first-mandrill-982` cloud and site origins only. To target another deployment, use a two-field manifest outside git:
 
-Obtain fresh **Firebase ID tokens** for Casey, Dana, and the locked account from the same configured Firebase project, using the normal trusted sign-in lane. Set `TAKE_CASEY_ID_TOKEN`, `TAKE_DANA_ID_TOKEN`, and `TAKE_LOCKED_ID_TOKEN` securely in the process environment. Do not put them in shell history, a checked-in file, an issue, or a probe command argument. Deployment keys and Apple tokens are not user ID tokens.
+```json
+{
+  "convexUrl": "https://YOUR-DEPLOYMENT.convex.cloud",
+  "siteUrl": "https://YOUR-DEPLOYMENT.convex.site"
+}
+```
 
-Create an untracked manifest outside the repo, for example `~/.capy/work/take-staging/probe.json`, containing exactly:
+This mode needs no credential, creates no account/fixture and checks 19 deployed boundaries: unauthenticated auth/content/device guards; Apple unavailable with the **known bootstrap placeholders**; strict fixed relay; POST Apple callback route; invalid media GET/HEAD denial. It never redeems a real callback. Once real Apple configuration exists, the unavailable-Apple expectation is no longer the appropriate lane: run real provider acceptance separately.
+
+This is not signed-in or valid-media acceptance. A missing route, malformed envelope, unexpected success, open redirect, cacheable relay/denial or transport error fails. The callback is POST: empty POST gives 400; GET may correctly give 404. The root page is not a health endpoint.
+
+## Authenticated privacy/media probe
+
+`take-probe.mjs` checks the actual Functions API and media route at v3 shapes. It creates short-lived grant records and reads bounded bytes but does not seed users/content or upload media. This lane remains **blocked**, not replaced by the bootstrap probe: the live development deployment has no hosted verifier or provided acceptance fixture.
+
+Use a dedicated non-production deployment and create through trusted setup:
+
+- Alex's valid published original and Blair's single published reply in the current round.
+- Approved Alex↔Blair, Alex↔Casey, Blair↔Casey and Alex↔Dana friendships, with no Blair↔Dana edge or blocks.
+- Published current-round originals/receipts for Casey and Dana.
+- A locked profile, approved friend of Alex, with no current-round receipt.
+
+Get fresh **Convex Auth access tokens** through the normal sign-in lane, not a deploy key, Apple token, user ID or demo identity. Set `REALS_CASEY_ACCESS_TOKEN`, `REALS_DANA_ACCESS_TOKEN` and `REALS_LOCKED_ACCESS_TOKEN` securely in the runner's environment. They must be distinct and unexpired; default access-token life is only 60 seconds. This runner does not renew sessions. A token expiring during a run makes it fail, never a successful access denial. Never put tokens in arguments, git, shell history, an issue or logs.
+
+Keep the identifier manifest outside the repository, for example `~/.capy/work/reals-staging/probe.json`:
 
 ```json
 {
@@ -25,29 +46,25 @@ Create an untracked manifest outside the repo, for example `~/.capy/work/take-st
 }
 ```
 
-The manifest has identifiers only, no secrets; still keep real fixture metadata private. Configure both origins explicitly. The runner requires HTTPS origins without credentials, paths, queries, or fragments and never follows redirects. It sends user tokens only to the configured Functions API. Playback requests go only to the configured site origin returned in an authorized grant.
-
 ```sh
-node verification/take-probe.mjs ~/.capy/work/take-staging/probe.json
+node verification/take-probe.mjs ~/.capy/work/reals-staging/probe.json
 ```
 
-The runner exits nonzero on any failed assertion or missing configuration and never silently skips to mocks. Logs contain static scenario IDs and PASS/FAIL only, not response bodies, tokens, IDs, grant URLs, captions, or names. Keep backend logging equally strict. A failing denied check can mean wrong fixture/configuration; inspect privately rather than exposing raw HTTP data in CI logs.
+Both modes require distinct explicit HTTPS origins without credentials/path/query/fragment. The bearer is sent only to the configured Functions origin; private grant requests must use the configured HTTP origin. Never follow a redirect to raw storage.
 
-## What it checks
+The authenticated mode checks **25 assertions**: Casey/Dana exact-round receipts, originals-only pagination, visible-only detail/replies, authorized original video, Casey reply caption/video, Dana known-ID caption/video/thumbnail denials, and locked Today/feed/direct-ID/media denials. Valid media requires HEAD, exact one-byte Range/206, MP4, ≤8 MiB, private/no-store, no redirect and corrupt-token denial. Grant expiry allows a two-second client/server clock margin around the server's ≤60-second limit.
 
-Casey/Dana same-round receipts, originals-only feed across pagination, viewer-filtered detail counts and flat replies, authorized original playback, Casey reply caption/video, Dana known-ID reply caption/video/thumbnail denial, locked safe Today/feed and known-ID content/media denials. Media checks require HEAD, exact single-byte Range/206, MP4, the delivered 8 MiB application cap, no redirect, private/no-store, and corrupt-token denial. It rejects grants longer than 60 seconds **plus a 2-second client/server clock allowance**; use server-time/source checks for the strict server-side ≤60-second limit.
+Every consumed v3 DTO is recursively validated before projection. Unknown/missing/wrong-type fields, response logs, unsafe denial text and wrong error codes fail. Generic HTTP media failures accept only empty/generic text or the exact actual JSON `{ failure: { code: "NOT_FOUND", message: "Not found", retryable: false } }` shape with an allowlisted generic message. Extra fields or a revealing message fail. Network/missing-function/invalid-argument failures cannot count as authorization denial.
 
-The accepted response shapes come from the integration contract plus wire addendum v1. Every consumed success value is recursively validated **before projection**: Today, Round/options, profile/avatar, receipt, original, reply, page, caption and playback grant. Missing required fields/nulls and unknown fields fail, including metadata beside a locked empty page or Dana's filtered replies. Exact backend error/HTTP behavior must be reconciled at the delivered head. The runner also rejects unexpected response-envelope fields and nonempty client-visible `logLines`, and requires a structured `NOT_FOUND` denial with only `code`, `message`, and `retryable`. Allowed denial text is the generic `Not found`, `Content unavailable`, or `Unavailable`, not hidden object details. Framework error text may only repeat that generic failure; adapt any framework wrapper only after examining the actual delivered envelope. Media error bodies must likewise be empty or generic. Network failures, missing functions, malformed JSON, and invalid-argument errors never count as successful security denial. This intentionally strict no-extra-field/no-log/no-detail staging policy can flag harmless additive fields or diagnostics for review; it never silently allows unexamined metadata.
+V4 adds fields/endpoints for audience, For You, likes, comments and battles. Until the backend owner publishes those exact shapes, this strict v3 runner is **not** a v4 probe; additive fields fail for review rather than silently admitting unexamined metadata. Keep friends-only fixture invariants and extend validation when those shapes arrive.
 
-## What it does not prove
+## Limits and local tooling
 
-This is not the full acceptance gate. It does not test expiry by waiting, remove/block/deletion revocation of an already-issued URL, physical capture, real verifier processing, pending requests, concurrent publication, failure/new-round transitions, native cache/player lifecycle, Apple authentication itself, or remote APNs delivery. Use [the acceptance matrix](acceptance.md) and [test lanes](../docs/testing.md) for those checks. It exercises negative thumbnail authorization but needs a separately seeded real thumbnail for positive thumbnail delivery evidence.
-
-Unit tests inject a fake transport solely to prove the probe catches leaks/protocol failures and does not misclassify network errors. They are never reported as backend, JWT, media, or UI test results. Run:
+Neither runner proves real Apple sign-in, positive session refresh/revocation, physical recording/audio, verifier processing, pending requests, concurrent publication, new-round transitions, native cache/player lifecycle, grant expiry by waiting or live remove/block/delete revocation. The authenticated mode needs separately seeded thumbnail bytes for positive thumbnail delivery. APNs registration is not delivery.
 
 ```sh
 node --test verification/*.test.mjs
 node verification/check-docs.mjs
 ```
 
-The link check validates local file destinations, not external URLs or Markdown fragment anchors. The CI workflow runs only these tooling checks and needs no secrets or service access. Keep real staging probes out of public PR CI until their fixture/credential lane is secured.
+CI runs those secret-free checks, not the hosted probe. Its conditional backend job runs only when implementation source is present. See the [acceptance matrix](acceptance.md), [test lanes](../docs/testing.md) and [exact status](../docs/verification-status.md).

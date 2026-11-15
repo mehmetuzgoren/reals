@@ -71,6 +71,19 @@ function origin(value) {
   return url.origin;
 }
 
+export function validateMediaDenial(body) {
+  if (['', 'Not found', 'Content unavailable', 'Unavailable'].includes(body)) return;
+  try {
+    object({ failure: object({
+      code: (value) => check(value === 'NOT_FOUND'),
+      message: (value) => check(['Not found', 'Content unavailable', 'Unavailable'].includes(value)),
+      retryable: (value) => check(value === false),
+    }) })(JSON.parse(body));
+  } catch {
+    throw new ProbeFailure();
+  }
+}
+
 export function validateManifest(value) {
   check(value && typeof value === 'object' && !Array.isArray(value));
   const required = ['convexUrl', 'siteUrl', 'roundId', 'originalId', 'replyId'];
@@ -187,7 +200,7 @@ export class ConvexProbe {
     });
     check([403, 404].includes(denial.status));
     check(!denial.headers.get('content-type')?.startsWith('video/'));
-    check(['', 'Not found', 'Content unavailable', 'Unavailable'].includes(await denial.text()));
+    validateMediaDenial(await denial.text());
   }
 }
 
@@ -285,9 +298,9 @@ async function main() {
     check(process.argv.length === 3);
     const manifest = JSON.parse(await readFile(process.argv[2], 'utf8'));
     const probe = new ConvexProbe(manifest, {
-      casey: process.env.TAKE_CASEY_ID_TOKEN,
-      dana: process.env.TAKE_DANA_ID_TOKEN,
-      locked: process.env.TAKE_LOCKED_ID_TOKEN,
+      casey: process.env.REALS_CASEY_ACCESS_TOKEN,
+      dana: process.env.REALS_DANA_ACCESS_TOKEN,
+      locked: process.env.REALS_LOCKED_ACCESS_TOKEN,
     });
     const results = await runProbe(probe, ({ id, passed }) => console.log(`${passed ? 'PASS' : 'FAIL'} ${id}`));
     console.log(`${results.filter((row) => row.passed).length}/${results.length} deployed assertions passed`);

@@ -1,30 +1,35 @@
-# Independent acceptance matrix
+# Independent Reals acceptance matrix
 
-Use a dedicated staging deployment for destructive server cases and isolated Demo Mode for fictional UI cases. Every executed row needs a source SHA/build/session or command result; unchecked rows remain unverified. `probe` means `take-probe.mjs` against real services, not its mocked transport tests.
+These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. V4 rows remain pending owner-published shapes and implementation.
 
 | ID | Scenario and required result | Evidence lane |
 | --- | --- | --- |
-| A01 | Fresh offline launch without URLs/plist/account enters explicit Demo Mode; fixtures/services/storage are isolated. Unconfigured production fails closed. | Native test + cloud UI + source/config review |
-| A02 | Pineapple prompt/options, then Elon prompt/options, match the brief; global server round/DST window is authoritative; previous posting closes only on actual next opening. | Cloud UI + backend scheduler tests |
-| A03 | Locked Today exposes only minimal approved-friend profiles/safe posted flags, never position/thumbnail/caption/reply/media/storage metadata. | Probe + DTO/source review |
-| A04 | Locked feed, known original/reply IDs, captions, thumbnails, and video grants are denied. Another round's receipt does not help. | Probe + backend tests |
-| A05 | Position selection → actual capture or explicit ≤15-second simulator fixture → preview/retake → publish → reveal; cancellation/denials recover. | Cloud UI; actual capture requires hardware |
-| A06 | Draft/recording/uploading/processing/failed states never create a receipt or unlock. Missing/failed verifier and malformed/>15-second/unauthorized bytes fail closed. | Backend tests + live verifier + native failure UI |
-| A07 | One original per round survives concurrent finalization, retries, replaced/replayed upload bytes and repeated request IDs. A reply cannot create a receipt. | Backend tests + independent integration review |
-| A08 | Main feed contains originals only; scrolling/navigation preserve state; detail has flat chronological eligible replies and a working record/publish-reply flow. | Probe + cloud UI |
-| A09 | Posted Casey sees Alex's original and Blair's reply. Posted Dana sees Alex only; no hidden reply count/name/ID/caption/thumbnail/video leak by known ID. | Probe + cloud UI |
-| A10 | A Blair-only friend cannot access Alex's parent or reply. Pending requests grant nothing; only recipient can accept; search exposes minimal profiles. | Backend tests + direct endpoint checks |
-| A11 | Remove/block in either direction immediately denies new reads/interactions and previously issued grant requests. Hidden reply audiences never enter push payloads. | Backend tests + live HTTP + notification review |
-| A12 | Video/thumbnail delivery supports HEAD and Range/206, no redirects/raw storage URLs, private no-store, opaque ≤60-second grants; expiry denies later requests. | Probe + expiry/revocation live test |
-| A13 | Delete original removes conversation/media but preserves receipt/unlock/one-original limit. Reply authors can delete without gaining hidden-parent access. Account deletion clears social/content/device state and handles Firebase cleanup honestly. | Backend tests + live integration/native UI |
-| A14 | New round relocks the feed, old friends' content cannot be browsed, own history remains in Profile. | Cloud UI + backend tests |
-| A15 | One active player; pause/release on navigation/background; no eager media downloads; identity/round/remove/block changes clear relevant subscriptions/private caches/drafts. | Native tests + source review + cloud lifecycle checks |
-| A16 | Server opens before daily push; generic daily/direct-reply notifications honor current authorization/preferences; tap re-fetches; invalid tokens retire. | Backend sender tests + real signed-device FCM/APNs |
-| A17 | Firebase nonce/Apple flow and refreshed ID token authenticate Convex with correct issuer/audience; missing/wrong/expired tokens and client impersonation fail. | Source review + real provider/deployment |
-| A18 | Camera/mic denial, capture interruption/background/audio changes, upload retry, local-draft cleanup and playback failure are recoverable; portrait/audio/15-second cutoff are real. | Native tests + cloud injectable cases + physical capture |
-| A19 | Three tabs, request lifecycle/remove/block, editable profile/avatar/preferences/sign-out/delete/report affordances work; Dynamic Type/VoiceOver/Reduce Motion are checked explicitly. | Cloud UI + native tests + accessibility session |
-| A20 | No subscriptions/payment UI, public discovery/followers/circles/codes/live debates/rankings/predictions/guessing gate/AI scoring. Captions may be unavailable, never fabricated. | Source/product walkthrough |
+| A01 | Fresh unconfigured offline demo needs no account or secret; services/storage stay isolated; missing live configuration fails closed. Network-denied operation is checked separately. | Native test + cloud UI + network test |
+| A02 | Mock demo defaults to hot-dog Yes/No; old pineapple/Elon rounds remain behind Demo controls; global zoned round/window is authoritative. | Mock side-by-side + scheduler tests |
+| A03 | Locked Today exposes only safe prompt/own/minimal friend state, never others' positions/captions/replies/media/storage metadata. | Privacy probe + DTO review |
+| A04 | Locked direct original/reply/caption/video/thumbnail access is denied; another round's receipt does not help. | Privacy probe + backend tests |
+| A05 | Option → Record → 3–15-second capture or explicit fictional sample → preview/retake → Post → reveal. Shutter cannot stop before 3 seconds and auto-stops at 15. | Mock UI + actual hardware |
+| A06 | Upload/processing/failure/cancel never create a receipt. Missing verifier, malformed/under-three/over-fifteen-second bytes and unauthorized intents fail closed. | Backend/media + hosted verifier + failure UI |
+| A07 | One original per round survives concurrent finalization, retries, bound-byte replay and repeated request IDs; replies cannot create receipts. | Backend + live publication |
+| A08 | Friends/For You lists contain originals only; full-screen replies stay flat, visible-only and navigable. | Privacy probe + cloud UI |
+| A09 | Casey sees Blair's reply on Alex; Dana sees Alex but no Blair reply/count/name/caption/thumbnail/media, even by known ID. | Privacy probe + Demo controls |
+| A10 | A Blair-only friend cannot access Alex's parent/reply; pending requests grant nothing; only recipient accepts; search exposes minimal profiles. | Backend + direct API |
+| A11 | Remove/block either way immediately denies reads/interactions and existing grants; no hidden audience enters notification targets. | Backend + live HTTP |
+| A12 | HEAD/Range/206, no storage redirects, private/no-store, ≤60-second opaque grants; later expiry/revocation denies bytes. | Privacy probe + timed/revocation HTTP |
+| A13 | Original deletion removes conversation/media but preserves receipt/uniqueness; account deletion revokes sessions and cascades content/social/device state without deleting an Apple account. | Backend + native + hosted deletion |
+| A14 | Next round relocks, prior receipts don't unlock it, own history remains reachable and friends' old-round content cannot be browsed. | Demo + backend |
+| A15 | Players/subscriptions/private caches/drafts clear or stop on navigation/background/identity/round/social change; no eager full-feed downloads. | Native tests + lifecycle UI |
+| A16 | APNs token/preferences are private and exact-shaped; sender stays unavailable until a real worker exists; eventual delivery honors current permission/access and refetches on tap. | Boundary probe + backend + signed-device worker |
+| A17 | Convex Auth v3 browser flow checks relay nonce before redemption with separate saved OAuth state; production rejects developer identities; wrong/expired/revoked sessions fail. | Source + hosted real auth |
+| A18 | Camera/mic denial, interruption, orientation/audio, upload retry, saved draft and cleanup recover without premature unlock; actual capture bytes satisfy verifier. | Native/cloud injectable + physical device |
+| A19 | Eight mocked screens match strings/elements/order/alignment/colors with only the two explicit exceptions; Friends/Profile remain reachable without a tab bar. | Eight mock-left/app-right comparisons |
+| A20 | No payments/subscriptions, ranking, liker lists, public profile pages or audience editing; no invented captions/transcripts. | Product/source walkthrough |
+| A21 | V4: friends is default; public is explicit/immutable; replies inherit audience and cannot supply their own. | DTO/backend + Post UI |
+| A22 | V4: For You includes only visible public originals, newest first, not self; same-round receipt and bidirectional blocks govern known IDs/grants too. | Backend + deployed public/privacy probe |
+| A23 | V4: one transactional like; 1–300-character rate-limited comments; author/commenter deletion; viewer-filtered comment counts and report/block permissions. | Backend + comments/like UI |
+| A24 | V4: battle pairing has different eligible authors/options; authors cannot vote; one changeable vote; zero-vote 50/50 and rounded percentages total 100. | Backend + Battle UI |
+| A25 | V4: content/account deletion cascades likes/comments/votes/battles and surviving-side battle pointers; blocks hide both sides. | Backend + direct APIs |
 
 ## Evidence record
 
-Record native SHA, backend SHA, docs SHA, base SHA, commands, test counts, build/test IDs, artifact reference, phone model/runtime/session, scenario IDs, screenshots/videos, observed failures, unresolved items, and external/hardware limits. Do not include secrets, real profile/media data, token values, or grant URLs. A screenshot cannot establish direct-ID denial or network independence; a server test cannot establish native playback or camera behavior.
+Record full native/backend/docs/base SHAs, commands/counts, build/version/test IDs, phone model/runtime/session, scenario IDs, comparisons/differences and outstanding lanes. Do not include secrets, real profile/media data, tokens or grant URLs. A screenshot is not direct-ID denial, audible playback or network-isolation proof; a server test is not native rendering.

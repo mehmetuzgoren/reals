@@ -1,55 +1,55 @@
-# Verification lanes
+# Reals verification lanes
 
-Tests are evidence for the layer they actually exercised. A syntax check is not an iOS build; a simulator fixture is not a camera recording; a mocked FCM sender is not APNs delivery. Record exact source SHAs, commands, build IDs, and device/session identifiers for every result. [Current evidence](verification-status.md) must stay honest.
+Record the exact source, command, artifact and device for each result. A tool test is not a product test; a cloud fixture is not a physical recording. [Verification status](verification-status.md) separates current and historical evidence.
 
-## Repository and backend
-
-Run `node --test verification/*.test.mjs` and `node verification/check-docs.mjs` for the independent probe/documentation tooling. The workflow runs these without secrets. Do not label that job product acceptance.
-
-With the backend implementation checked out, run `cd backend && npm ci && npm run check` (TypeScript and 43 tests at the corrected reviewed snapshot). With FFmpeg/FFprobe 6.1+ installed at `/usr/bin`, run `npm run test:media` for three actual worker-HTTP/decoder integration tests, then `npm --prefix verifier run check` for 61 worker cases. The latter lanes decode real generated media and exercise registered Convex routes, but Convex itself runs in the local test harness with injected identities. They do not establish hosted Firebase JWT acceptance, deployment connectivity, or APNs delivery. Compare current test counts with [recorded evidence](verification-status.md), not an assumed permanent count.
-
-Review public DTOs against native decoders and exercise reads/media through [the deployed probe](../verification/README.md) once a dedicated staging fixture and real Firebase tokens exist. The backend development seed creates round plans only, not that fixture. CI skips the backend job explicitly when this docs-only branch lacks implementation; a skipped job is not a product pass.
-
-For combined unmerged integration, keep the docs PR free of other owners' code. Use a disposable worktree/scratch checkout, apply the native/backend trees at their supplied heads, and record both full SHAs plus docs SHA. Do not mistake the working tree's base SHA for the pair under test. Route defects with file/line, expected/actual behavior, and reproduction to the Captain; do not patch another owner's directories.
-
-## Native build and XCTest
-
-The delivered project/scheme/scripts are confirmed in native source. On macOS or Revyl's native macOS runner, from `ios/`:
+## Tooling and live development boundary
 
 ```sh
-bash scripts/build-simulator.sh
-SIM_ID="$(xcrun simctl create TAKE-tests com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-18-5)"
-TAKE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_ID" bash scripts/test-simulator.sh
+node --test verification/*.test.mjs
+node verification/check-docs.mjs
+node verification/deployment-probe.mjs verification/deployment.example.json
 ```
 
-Output is `build/Build/Products/Debug-iphonesimulator/TAKE.app`; results are `build/TAKE-tests.xcresult`. The native owner archives `reals/ios` relative to this workspace root and owns Revyl build/XCTest. Scripts resolve packages and build arm64 with `CODE_SIGNING_ALLOWED=NO`; select an actually installed simulator runtime/UUID if the example differs. Retain logs/build IDs and the tested source SHA. Do not report an earlier succeeded artifact as proof of a later push.
+The first commands run 22 local tooling tests and Markdown links without secrets. The last command makes 19 real unauthenticated boundary checks against the live bootstrap deployment: session/content auth guards, the APNs argument shape reaching its auth guard, unavailable Apple start/completion, relay malformed-input/fixed-destination behavior, the POST callback route and invalid-media GET/HEAD denial. It creates no account, media or fixture. All requests refuse redirects.
 
-The unsigned build omits Apple signing verification. No Xcode or simulator toolchain is installed on the Linux workspace; `swiftc -parse` where available still cannot typecheck SwiftUI/AVFoundation app code for iOS.
+The Apple callback uses POST; its empty POST returns 400. GET 404 does not mean the POST route is absent. A missing POST callback or GET relay after deployment is a failure. The probe deliberately expects Apple bootstrap placeholders; once real Apple credentials are installed, replace this unavailable-Apple expectation with a real provider acceptance lane, not a fake pass.
 
-## One final Revyl cloud-iPhone session
+The separate [privacy/media probe](../verification/README.md) checks signed-in Casey/Dana/locked audiences and actual grants/bytes. It has **not** run against this deployment because its authenticated published fixture and hosted verifier are absent. The developer seed creates round plans only. No mock is substituted for this lane.
 
-Use the built-in mobile/phone lane, not a Revyl MCP or plugin. Read the cloud-phones and computer-use instructions before controlling it. Attach an iOS 18.5 cloud iPhone and install the native owner's **already succeeded artifact**. Do not spend another build or session merely to restate its claim.
+CI runs local tooling; it does not call the live deployment. If backend source exists in a combined checkout, CI runs local backend/worker tests; on this docs-only branch it explicitly skips that job. A skipped job is not product evidence.
 
-Before installing, record native/backend/docs heads, build ID, artifact path or managed-build reference, bundle ID, runtime, and model. Start clean demo data and keep all evidence fictional/public-safe. A phone session is bounded; finish the acceptance loop and sleep/remove the phone when done.
+## Backend and native source
 
-1. Launch without production config. Confirm **Explore Demo Mode** needs no login and all three tabs work. Separately deny network for offline acceptance. Save a screenshot of the locked prompt, safe friend indicators, option labels, and explicit demo state.
-2. Pick a position, open record, and use the explicitly labeled simulator fixture if capture hardware is unavailable. Confirm the 15-second rule, preview/retake, visibility copy, publication state/progress, and reveal. Never call that fixture live recorded video.
-3. Confirm the main feed contains originals only. Play one original, navigate to its detail and chronological flat replies, then publish a video reply. Confirm return navigation keeps sensible feed position and no other cell keeps playing.
-4. Switch to posted Casey and then Dana. Casey must see Blair's reply on Alex; Dana must see Alex but not Blair's reply or its count. This UI observation complements, not replaces, direct-ID/media server probes.
-5. Release round 2. Confirm the exact Elon Musk question/options and the feed re-lock. Previous-round receipts must not unlock it. Confirm own history remains in Profile and friends' old rounds cannot be browsed.
-6. Exercise denied camera/microphone, failed upload/processing, retry, background/interruption, playback failure, friendship removal/block, and identity reset where real UI controls support them. Note what is not injectable instead of claiming it was tested.
-7. Check large text, accessible names/positions not conveyed only by color, Reduce Motion, safe areas, and player pause on navigation/background where the cloud runtime exposes those settings. VoiceOver must be a separate explicit check, not inferred from readable screenshots.
+At the implementation checkout:
 
-Save screenshots and supported screen recordings under the crew's `renders/REAL-7/`, with a manifest tying each to its step/build/session. Publish only final public-safe UI evidence to a PR. A screenshot demonstrates a state, not sound, network independence, correct backend authorization, or continuous player lifecycle. Cloud-phone recording support must be checked in the actual tool; do not promise a video from a screenshot-only lane.
+```sh
+cd backend
+npm ci
+npm run check
+npm run test:media
+npm --prefix verifier run check
+```
 
-## Real staging and hardware gates
+FFmpeg/FFprobe 6.1+ must be installed at `/usr/bin`. Backend tests use `convex-test`; actual-media/worker tests decode generated bytes with real subprocesses, not phone recordings. Current v3 owner reports 75 backend / 3 media / 61 worker tests; earlier independently executed counts are tied to older SHAs in [status](verification-status.md). Do not reuse an older pass for v4.
 
-Run all [acceptance scenarios](../verification/acceptance.md), not just the happy path. Use a dedicated non-production deployment and actual Firebase identities. Cover valid/invalid token claims; actual verifier inspection and >15-second/malformed media rejection; owner-private staging; locked and Casey/Dana direct-ID/caption/thumbnail/video denials; stale-grant expiry and removal/block/deletion; concurrent/idempotent publication; receipt-preserving deletion; next-round scheduling; and generic, preference-aware notification targets.
+Keep combined integration in a disposable checkout; don't duplicate another owner's source in this docs PR. Record native/backend/docs SHAs independently and compare exact request/response shapes. New v4 DTOs must keep strict validation, not accept arbitrary fields just to pass.
 
-On an actual signed iPhone, verify portrait front-camera + microphone recording, early stop and automatic 15-second cutoff, sound in preview/playback, orientation/interruption/audio-session changes, export/upload of actual capture bytes, permission denial/recovery, and file cleanup. Simulator fixtures do not satisfy these rows. No physical iPhone was connected at bootstrap.
+## Native build and mock-exact UI
 
-With Apple/Firebase/FCM credentials configured, verify real Apple sign-in, reauthentication/account deletion, foreground/background/cold-start remote APNs delivery, notification preferences/denial/token rotation, invalid-token retirement, and authorization re-fetch for a stale deep link. Provider documentation and mocked sends do not satisfy these rows.
+On macOS/Revyl from `ios/` run `bash scripts/build-simulator.sh` and `bash scripts/test-simulator.sh`, using an installed iPhone runtime and `TAKE_TEST_DESTINATION` when needed. Output is `build/Build/Products/Debug-iphonesimulator/TAKE.app`; results are `build/TAKE-tests.xcresult`. Linux parsing cannot typecheck SwiftUI or establish XCTest.
 
-## Review and release
+Reuse the existing QA phone only when Development routes the succeeded mock build. Do not use the Captain's viewing phone or attach a duplicate. Capture the eight demo states in order: prompt, Record, My friends, original full screen, reply full screen, For You, public take full screen and Battle. Save mock-left/app-right comparisons at the same 393-point width, with every difference listed per screen. The supplied eight-screen images win over prose; the older four-screen design is superseded.
 
-Automatic PR review is off. Obtain a separate read-only reviewer for this documentation/probe PR and record their reviewed head and findings/disposition. Cross-layer integration review must use actual native/backend heads; a contract-only review cannot pass it. CI green plus a clean read-only review is not the full behavior gate. Do not call the product ready while app installation/walkthrough or required privacy behavior is untested. Never merge without explicit authorization.
+Check no extra tab bar/Demo labels/helpers on mocked screens, except the retained people icon on the feed and the selected battle card outline. Check exact strings/positions, black/grey/white, two option pills going directly to Record, 3–15-second shutter, first-frame cards, full-screen autoplay/pause, visible-only reply counts, comments and battle interactions. Screenshots do not prove sound. Mock clips are fictional local fixtures; do not call them physical capture.
+
+After visual capture, use Demo controls to repeat the old privacy matrix: Casey sees Blair's reply on Alex, Dana does not or see its count; the friends feed contains originals only; releasing the next round relocks. Then sleep the phone immediately to release the build lane. Preserve the actual artifact/source/scenario manifest.
+
+## Separate authenticated and hardware gates
+
+Use dedicated non-production accounts for valid/invalid/expired Convex Auth sessions, sign-out/refresh, same-account reauthentication/deletion, production rejection of development identities and nonce/state handling. Test a real Apple browser callback only with real provider configuration.
+
+Host the trusted verifier before real upload/publication/receipt/grant, concurrency, malformed/under-three/over-fifteen-second media, live revocation and actual Range delivery acceptance. V4 also needs public/friends isolation, hidden comment/reply counts, blocks, inherited reply audience, idempotent likes, one vote/author exclusions and deletion cascades. See the [matrix](../verification/acceptance.md).
+
+On a signed physical iPhone verify portrait front camera/microphone, sound, 3-second minimum and 15-second cutoff, orientation/interruption/audio session, actual export/upload bytes, permissions/recovery and cleanup. Signed-device APNs delivery needs a real worker; token registration alone does not prove it. Dynamic Type, VoiceOver and Reduce Motion each need explicit evidence, not an inference from readable screenshots.
+
+Automatic PR review is off. Record a separate read-only review of changed tooling/docs; don't report an absent platform review as passed. No merge or auto-merge is authorized.

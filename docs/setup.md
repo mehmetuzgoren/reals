@@ -1,10 +1,10 @@
-# Setup: offline first, production fail-closed
+# Reals setup
 
-These commands and configuration names were read from the delivered native and backend source, not inferred from the interface contract. The implementations are separate PRs; use the corresponding checkout or an explicitly combined integration checkout. [Verification status](verification-status.md) records the tested heads. This guide does not imply that hosted services, Apple signing, or production credentials have been provisioned.
+Use the native/backend PR checkout for its commands; this docs-only branch contains neither implementation. [Verification status](verification-status.md) records exact heads. Reals is the product name; the current Xcode target, storage paths and bundle identifier may retain internal `TAKE` names. The eight-screen replacement UI is pending its own build, not established by older demo screenshots.
 
 ## Native offline demo
 
-On macOS, open `ios/TAKE.xcodeproj`, select the shared **TAKE** scheme, and run on an iOS 18+ iPhone simulator. No project generator, CocoaPods, Node, account, Firebase client file, or Convex deployment is required. The demonstrated native lane used arm64 iPhone 16 / iOS 18.5 with Xcode 27 (`27A266a`); an older Xcode minimum has not been independently established.
+On macOS open `ios/TAKE.xcodeproj` and select the shared **TAKE** scheme. No generator, CocoaPods, Node, backend account or secret is required for the isolated demo. The executed lane was arm64 iPhone 16 / iOS 18.5, Xcode 27; ConvexMobile **0.8.2** is pinned. An older Xcode minimum has not been independently established.
 
 ```sh
 cd ios
@@ -13,107 +13,88 @@ SIM_ID="$(xcrun simctl create TAKE-tests com.apple.CoreSimulator.SimDeviceType.i
 TAKE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_ID" bash scripts/test-simulator.sh
 ```
 
-Use an installed simulator runtime and its actual identifier if your Mac differs. The scripts build arm64 because the pinned Convex framework lacks an x86_64 simulator slice. The app is `build/Build/Products/Debug-iphonesimulator/TAKE.app`; test results are `build/TAKE-tests.xcresult`. A build alone is not XCTest evidence.
+Choose a runtime/UUID actually installed on your Mac. Scripts build arm64; output is `build/Build/Products/Debug-iphonesimulator/TAKE.app` and test results are `build/TAKE-tests.xcresult`. A build is not a test pass.
 
-Choose **Explore Demo Mode**. Casey starts locked on the pineapple question. Choose Yes/No/Depends → Give your take → Use simulator sample instead → explicitly confirm **Use labeled 4-second sample** → preview → publish. The illustrated portraits and synthetic tones are bundled fictional samples, not live capture, speech, or transcripts. Real hardware submissions use the in-app front camera and microphone.
+At auth source `027d488`, choose **Explore Demo Mode**, then Casey's pineapple option → Give your take → scroll to Use simulator sample instead → confirm the labeled four-second fixture → preview → publish. The existing Demo lab switches Casey/Dana, releases the Elon round and injects upload failure. The new mock-exact version instead starts on “Is a hot dog a sandwich?”, opens Record directly from Yes/No, removes the tab bar and exposes old privacy rounds by long-pressing **Reals**. Those are replacement-build acceptance requirements, not this source's observed behavior.
 
-Today and Profile expose **Developer-only Demo controls**. Switch Casey/Dana to check the reply audience, release the second question to test exact-round relock, arm **Fail the next upload** before creating a take, and reset all demo data when needed. `--demo --reset-demo` is the deterministic test launch. Demo state/drafts live separately under Application Support/TAKE/Demo and DemoDrafts; live drafts use LiveDrafts and are viewer-bound. Production rejects fixture provenance. Test network-denied operation separately; an unconfigured launch with working network is not that evidence.
+Illustrated samples and synthetic tones are fictional, not camera recordings or spoken testimony. Demo data/drafts use Application Support/TAKE/Demo and DemoDrafts; viewer-bound live drafts use LiveDrafts. Production rejects fixture provenance. Unconfigured demo launch has been observed; network-denied operation is a separate unexecuted lane.
 
-Swift Package Manager pins `ConvexMobile` **0.8.2** and Firebase Auth/Core/Messaging **13.2.0**. The checked-in `Package.resolved` contains 14 resolved pins. No Firestore, Cloud Functions, Firebase Storage, payment, or Whop SDK is required.
-
-## Configuration inventory
-
-Never commit credentials, project-specific Firebase files, tokens, grants, recordings, or signing material. Ignore rules are not a substitute for checking tracked files. Native configuration is public client configuration, not permission to include server secrets.
-
-| Name / item | Actual location / purpose |
-| --- | --- |
-| `CONVEX_URL` | `ios/Config/Public.local.xcconfig`; HTTPS Convex query/mutation/action origin. |
-| `CONVEX_SITE_URL` | Same file; separate HTTPS HTTP upload/media origin. Do not derive custom domains by suffix replacement. |
-| `FIREBASE_PROJECT_ID` | Native xcconfig and Convex deployment; must match the Firebase client plist, token issuer/audience, and server account project. |
-| `GoogleService-Info.plist` | Ignored `ios/Config/GoogleService-Info.plist`; downloaded for the exact native bundle ID. |
-| Apple bundle / team IDs | Xcode signing, Apple App ID, Firebase Apple app, APNs topic, and profile must agree. Current demo bundle is `com.take.app`; no distribution team is configured here. |
-| `CONVEX_DEPLOYMENT` | Ignored developer environment; selects a development deployment, not an app credential. |
-| `CONVEX_DEPLOY_KEY` | Deployment automation secret only, never native runtime or probe input. |
-| `TAKE_HTTP_ORIGIN` | Convex deployment; exact HTTPS site/custom HTTP origin, no trailing slash. |
-| `MEDIA_VERIFIER_ORIGIN` | Convex deployment; trusted worker HTTPS origin, no path/trailing slash. |
-| `MEDIA_VERIFIER_SECRET` | Convex server secret; matches worker `VERIFY_SHARED_SECRET`, at least 32 random characters. |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Convex server secret; Firebase Admin Auth cleanup and FCM HTTP-v1 permissions, same Firebase project. A developer's local credential-file path is not this hosted value. |
-| `TAKE_ROUND_TIMEZONE` | Convex deployment; defaults to `America/Los_Angeles`. |
-| `TAKE_ROUND_START_HOUR`, `TAKE_ROUND_END_HOUR` | Convex deployment; integer local hours, defaults 10 and 20, start < end. |
-| `TAKE_DEPLOYMENT_ENV`, `TAKE_ALLOW_DEV_SEED` | Convex deployment; production uses `production` / `false`. Development seeding requires `development` / `true`. |
-| Apple sign-in key, APNs key, signing certificate/profile | Secret provider/signing configuration, not native xcconfig or Convex source. Apple sign-in and APNs keys serve different purposes. |
-
-For live native configuration:
+## Native live configuration
 
 ```sh
 cp ios/Config/Public.example.xcconfig ios/Config/Public.local.xcconfig
 ```
 
-Edit the ignored copy and add the matching ignored Firebase plist. Preserve the example's `https:/$()/...` xcconfig escaping: a literal `//` starts a comment in this format. `Config/Base.xcconfig` includes the local file; the build copies the optional Firebase plist. `LiveConfiguration` rejects missing/placeholders, invalid HTTPS origins, identical deployment/site hosts, or mismatched Firebase project/bundle IDs. `FirebaseAppDelegateProxyEnabled=false` and `FirebaseMessagingAutoInitEnabled=false` are intentional: delegates and consent are handled explicitly. Live configuration is excluded from the unconfigured demo archive.
+Edit the ignored file, preserving xcconfig's `$()` escape so `//` does not start a comment:
 
-## Convex application backend
+```text
+CONVEX_URL = https:/$()/first-mandrill-982.convex.cloud
+CONVEX_SITE_URL = https:/$()/first-mandrill-982.convex.site
+```
 
-Use Node 24 and the checked-in npm lockfile. Actual dependencies include Convex **1.50.0**, Firebase Admin **14.5.1**, Temporal polyfill **0.5.1**, and Vitest **5.1.0**.
+Both are distinct HTTPS origins with no path/query/fragment/credentials. The SDK URL and HTTP origin are separate; do not infer custom domains by replacing a suffix. Missing/placeholders fail closed. No server secret belongs in xcconfig, plist or the app. Apple provider credentials are deployment-only. Signing team/profile and any future APNs entitlement remain signed-device configuration, not proof of notification delivery.
+
+The app registers the internal `take` callback scheme. Apple browser auth uses `ASWebAuthenticationSession` and `take://auth/convex`. The separately labeled developer username/password screen at `027d488` requires `--development-auth` and is outside Demo; backend enforcement, not a launch flag, makes it development-only.
+
+## Live development deployment
+
+Development deployed backend `a48095d8730507a63bc99f033ad69d799613d579` to project `mehmet-uzgoren/reals`, deployment `first-mandrill-982` on November 15, 2026. SDK: `https://first-mandrill-982.convex.cloud`; HTTP: `https://first-mandrill-982.convex.site`. The boundary probe independently reaches its deployed auth/relay/media routes. A root-page 404 is not a deployment-health test.
+
+Dependencies at this source: Convex **1.50.0**, Convex Auth **2.0.0**, Temporal polyfill **0.5.1**, Vitest **5.1.0**. On Node 24:
 
 ```sh
 cd backend
 npm ci
 npm run check
-npx convex dev
+npx convex deploy
 ```
 
-`convex dev` selects/authenticates a development project, generates bindings, and pushes schema/functions. The first successful push requires deployment `FIREBASE_PROJECT_ID`; set it in the selected deployment through its dashboard or `npx convex env set FIREBASE_PROJECT_ID <project-id>`. Use the secret manager/dashboard for secret values, not shell history. Inspect `backend/.env.example` for names; it is not configured credentials. Verify the target before `npm run deploy` (`convex deploy`). The verification workflow never deploys.
+Use the intended project's secure scoped `CONVEX_DEPLOY_KEY`, never a client credential. With this deploy-key lane, omit `--deployment` from `npx convex env set/list`: that flag selects a member-auth flow instead. Do not print the key or copy an environment dump into logs. Human member login is a different lane.
 
-The backend owns `convex/schema.ts`, indexes, generated bindings, HTTP routes, crons, and internal workers. Indexes are not uniqueness constraints: serializable mutations enforce unique usernames, request transitions, idempotency, and one original/receipt per viewer/round. `npx convex run planner:plan '{}'` is an administrator-only CLI invocation of an internal function; the hourly planner maintains the next three eligible local dates, including today only before its window ends. Production clients cannot release rounds or select an identity.
+Deployment bootstrap values are non-secret:
 
-The corrected schema requires persisted `windowStartsAt` / `windowEndsAt` on rounds. An empty new deployment needs no backfill. Before applying this schema to an earlier draft deployment, follow `backend/DEPLOYMENT.md` and backfill existing rows using each original zoned plan date and scheduling policy. Do not widen windows, backdate openings, or treat this as a client control. No hosted deployment/backfill has been executed by this verification thread.
-
-The development seed is deliberately narrow:
-
-```sh
-CONVEX_DEPLOYMENT=dev:<development-name> npm run seed:dev
+```dotenv
+TAKE_DEPLOYMENT_ENV=development
+AUTH_APPLE_CLIENT_ID=unconfigured
+AUTH_APPLE_TEAM_ID=unconfigured
+AUTH_APPLE_KEY_ID=unconfigured
+AUTH_APPLE_PRIVATE_KEY=unconfigured
+TAKE_HTTP_ORIGIN=https://first-mandrill-982.convex.site
+TAKE_ROUND_TIMEZONE=America/Los_Angeles
+TAKE_ROUND_START_HOUR=10
+TAKE_ROUND_END_HOUR=20
+TAKE_ALLOW_DEV_SEED=false
 ```
 
-It additionally requires deployment `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`, refuses production/extra arguments, and invokes the server planner using two prompt templates across the next three eligible dates. **It does not create Firebase identities, friendships, uploaded media, receipts, or the probe's acceptance fixture.** The [deployed probe](../verification/README.md) needs a dedicated staging fixture populated through real authenticated onboarding/publication: Alex↔Blair, Alex↔Casey, Blair↔Casey, Alex↔Dana, no Blair↔Dana; published Alex original/Blair reply; Casey/Dana receipts; and a separate locked identity. Keep fixture IDs and tokens private. Native demo fixtures never write to this deployment.
+These are the operator-reported live settings, not values exposed by the probe. The Apple component requires all four bindings at installation; both Apple start/completion reject placeholders. Real production Apple auth needs the Services ID, team ID, key ID and server-only `.p8` private key in those same variables. Convex supplies `CONVEX_CLOUD_URL` / `CONVEX_SITE_URL`, token signing and JWKS; do not provision a custom JWT issuer or signing secret.
 
-### Firebase ID-token boundary
+Current auth functions are mutations: `auth:signUpWithUsernamePassword({ username, password })`, `auth:signInWithUsernamePassword({ username, password })`, `auth:startSignInWithApple({ redirectTo })`, `auth:completeSignInWithApple({ state, code })`, `auth:refreshSession({ refreshToken })` and `auth:signOut({ refreshToken })`. Passwords require at least ten characters. There is no `auth:signIn` or anonymous provider. Password sign-in and existing password-created identities are denied unless deployment mode is exactly `development`.
 
-`convex/auth.config.ts` uses custom JWT / RS256, issuer `https://securetoken.google.com/<FIREBASE_PROJECT_ID>`, audience `applicationID=<FIREBASE_PROJECT_ID>`, and JWKS `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`. The native auth provider exchanges Apple credentials with Firebase and supplies **Firebase ID tokens**, never Apple tokens or a client-selected viewer. HTTP uploads authenticate the same project/identity using `Authorization: Bearer <Firebase ID token>`.
+Apple's HTTPS return is `/oauth/apple/callback`, a **POST** route. An empty POST returns 400 on the live deployment; GET returns 404 because it is not that route's method. The app generates a 43-character base64url relay nonce in `redirectTo=<site>/auth/ios?state=<nonce>` and separately saves the returned OAuth state. The fixed relay forwards the nonce/code only to `take://auth/convex`. Verify the returned nonce before redeeming with the saved **OAuth state**; they are distinct. Missing/duplicate/malformed relay fields give 400/no Location, always no-store/no-referrer. The live probe checks this fixed routing, not real Apple authentication.
 
-Application tombstones reject disabled/deleting identities and their existing grants immediately. Custom JWT validation does not check Firebase-console-only revocation/disablement on every request. Administrators must first invoke internal `admin:setDisabled` through the authorized CLI/dashboard; it cannot reactivate deletion tombstones. On staging, test real accepted Firebase tokens and absent/expired/wrong-issuer/wrong-audience/Apple-token rejection. Unit-test identities are not that check. See [Firebase verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens) and [Convex custom JWTs](https://docs.convex.dev/auth/advanced/custom-jwt).
+Access tokens default to 60 seconds; refresh securely through Convex Auth and replace the SDK session. Sign-out clears private state and revokes the session. Account deletion requires a fresh sign-in to the same account within five minutes; refresh does not reset session age. Failure is `REAUTH_REQUIRED`. Deletion tombstones the app user and revokes its sessions; it does not delete the person's Apple account.
 
-### Trusted media worker and uploads
+## Verifier and notification boundary
 
-The delivered `backend/verifier/` is a separate Node 24 service with actual FFprobe/FFmpeg, not an executable inside Convex. Its README is the deployment authority for the pinned container, nonroot user, bounded CPU/memory/process/tmp space, authenticated TLS ingress, deadlines, concurrency, and log redaction. Local tests require FFmpeg/FFprobe 6.1+ at `/usr/bin/ffmpeg` and `/usr/bin/ffprobe`; the container supplies FFmpeg 7.
+The verifier is **not hosted**. Live publication cannot create a receipt without it. `MEDIA_VERIFIER_ORIGIN` must eventually be the worker's HTTPS origin; `MEDIA_VERIFIER_SECRET` must match its server-only `VERIFY_SHARED_SECRET` (at least 32 random characters). Do not set a pretend worker URL or accept client metadata as verification.
+
+The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and ≤15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. V4 adds `minDurationMs: 3000`; it is pending the backend's published exact shapes, not yet proved by the live v3 deployment.
+
+The worker uses actual stored bytes plus `X-Content-SHA256` at authenticated `POST /verify` / `POST /verify-avatar`. It is a separate Node 24 / FFmpeg service, not code that runs inside Convex:
 
 ```sh
 cd backend/verifier
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check
+npm start
 ```
 
-From the repository root, `docker build --pull -t take-media-verifier:local backend/verifier` builds the service. Follow its README's constrained container test/run commands; do not expose an unconstrained unauthenticated port. Worker `VERIFY_SHARED_SECRET` must match Convex `MEDIA_VERIFIER_SECRET`; worker `PORT` defaults to 8080. Convex must reach its configured HTTPS origin, not the worker host's loopback address.
+Supply `VERIFY_SHARED_SECRET` securely before starting and use FFmpeg/FFprobe 6.1+ at `/usr/bin`. Optional `PORT` defaults to 8080. Before hosting, follow the actual `backend/verifier/README.md` container/TLS/resource/ingress instructions; local startup is not HTTPS deployment. Never expose storage redirects, private body/header logs or an unauthenticated verifier bypass.
 
-`POST /verify` and `/verify-avatar` accept the exact uncompressed binary body as `application/octet-stream`, an exact lowercase SHA-256 in `X-Content-SHA256`, and server-only `Authorization: Bearer ...`. They never fetch a client URL. Video response keys are `sha256`, `durationMs`, `width`, `height`, `videoCodec`, `audioCodec`, `thumbnailBase64`; avatar response keys are `sha256`, `mimeType`, `width`, `height`, `imageBase64`. Convex bounds the response, validates its shape/hash, and rechecks authorization in the final transaction. Failed/unconfigured inspection creates no successful receipt or unlock. No transcription service is claimed; captions return `unavailable` / `null`.
+`devices:register({ installationId, token, platform: "ios", notificationsEnabled })` accepts the APNs token's hex encoding, not a delivery claim. `devices:unregister({ installationId })` removes that install. The shipped sender reports unavailable; there is no working remote push provider yet.
 
-Native publication is `uploads:begin` → owner-authenticated `POST /v1/uploads/<uploadId>/video` → `uploads:finalize` / `uploads:status`. The actual app cap is **8 MiB**, maximum **15,000 ms**, portrait nonfragmented H.264/AAC-LC MP4 with square pixels and at most 60 fps. Native export has a 14.9-second safety trim and an 8 MiB file limit. Worker silence checks reject effectively silent audio. Physical capture/export bytes still require a real-device roundtrip; source compatibility is not that evidence.
+## Round data and v4
 
-Avatar intents accept at most **2 MiB** and **2048×2048**. Native downsamples/re-encodes before upload; the trusted worker fully validates and normalizes to a metadata-free JPEG at most **512 px**. Only the normalized selected avatar is served from `/v1/avatars/<userId>`; arbitrary storage IDs cannot be used to retrieve staging/video.
+The internal development seed requires explicit `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`; restore the latter to false afterward. It creates three eligible round-plan dates, not users, friendships, private media or the deployed probe's fixture. Today is eligible only before its configured local window ends; openings persist their original window and refuse expired/stale plans.
 
-Video intents last ten minutes; processing/upload leases last two minutes. Private media uses opaque **60-second** grants at `/v1/media/<grantId>?token=...`, not `storage.getUrl()` or redirects. Every GET/HEAD/Range rechecks current access; responses are `private, no-store`. Redact grant query strings, headers, bodies, and device tokens in ingress/APM logs. See [revocation policy](security.md#media-expiry-and-revocation). Feed/history/reply pages cap at **8/10/50**, respectively; conversations cap at 50 stored replies. Social changes can invalidate a visible-only cursor; restart from `null` on `NOT_FOUND`.
-
-### Scheduling, cleanup, and costs
-
-The server chooses the random daily opening inside the configured local-hour window using DST-aware dates and persists that window. A delayed opening can catch up only inside the same window, using the actual opening time; expired/stale plans leave the current round and push jobs untouched. The previous round closes only when its successor actually opens, then a generic push job is enqueued. Device dates and missed pushes never select/unlock a round.
-
-Bounded jobs clean expired staging/grants, orphan objects, superseded avatars, deleted conversations, and account data. Deleting an original preserves its successful receipt and one-original limit. Account deletion tombstones revoke access before asynchronous Firebase identity cleanup. Convex reads/storage/private bandwidth, worker CPU, and FCM incur service costs; application limits do not replace ingress quotas, retention policy, or load testing.
-
-## Apple sign-in, notifications, and deletion
-
-Register the exact Apple bundle with the Sign in with Apple and Push Notifications capabilities; add matching Firebase Apple-app/provider configuration and signed provisioning. Keep private keys and service-account JSON outside git and the app bundle. Nonce generation/validation and Firebase ID-token refresh are implemented, but real Apple authentication/signing remain external verification gates.
-
-The app explains notifications before OS permission, maps APNs tokens manually, refreshes FCM registration, persists daily-question/direct-reply preferences, and attempts authenticated unregister/token retirement on sign-out. Configure Firebase's APNs auth key/team/key ID and a least-privilege same-project FCM Admin credential. Backend payload data is `type` (`daily` / `reply`), `roundId`, and optional `contentId`; alerts never include opinions, captions, media, or reply authors. Invalid/malformed tokens are retired only if the stored token still matches the failed attempt. Each raw fanout page has five claims including crashes; exhausting one page advances to later devices without resending persisted successes, while an exhausted final page remains unavailable rather than successful. The current native tap handler selects Today and refetches authorized state; it does **not** route directly to a payload-selected conversation, and no `take://` scheme is registered.
-
-Deletion requires Firebase `auth_time` within five minutes, not merely a refreshed token. On `REAUTH_REQUIRED`, Profile instructs sign-out and Apple sign-in again, then retry within five minutes. Local cleanup/tombstones and queued upstream Firebase deletion are distinct outcomes; do not call upstream identity deletion complete while its job is unconfigured/failed.
-
-Use a signed physical iPhone to verify real Apple auth/deletion, camera/audio/orientation/interruption, and foreground/background/cold-start FCM/APNs. Simulator fixtures, local notification injection, and mocked sends do not satisfy those gates. See [testing](testing.md) for the exact evidence boundary. Whop requires no setup now.
+A fresh empty deployment needs no backfill. Reused draft rows need reviewed identity migration and `windowStartsAt` / `windowEndsAt` backfill from the original zoned plan/policy before applying the strict schema. Never widen windows or backdate openings to bypass it. V4 audience/social schema changes need their own owner-published migration guidance; do not guess compatible defaults.

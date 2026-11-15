@@ -1,4 +1,4 @@
-name: TAKE verification
+name: Reals verification
 
 on:
   pull_request:
