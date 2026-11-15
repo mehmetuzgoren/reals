@@ -1,0 +1,45 @@
+# Deployment and external verification
+
+## Convex and Firebase Apple authentication
+
+1. Create a Convex project and select a development deployment with `npx convex dev`. Configure the variables below in that deployment before its first successful code push; `auth.config.ts` deliberately rejects a missing Firebase project. After the initial local project selection, `npx convex env set FIREBASE_PROJECT_ID <project-id>` configures the nonsecret project ID. Use Convex's dashboard or your secret manager for secret values, never put them in shell history, a PR, or the app bundle.
+2. In Firebase Authentication, enable Apple sign-in for the actual Apple app identifier. Register the native iOS bundle and use its matching `GoogleService-Info.plist` outside git. Configure Apple capability/nonce/re-authentication in the iOS target; the native service must exchange Apple credentials with Firebase, then refresh Firebase ID tokens through the Convex custom auth provider.
+3. Convex validates RS256 against `https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`, exact issuer `https://securetoken.google.com/<FIREBASE_PROJECT_ID>` and exact audience `<FIREBASE_PROJECT_ID>`. Do not omit `applicationID` or replace it with the Apple bundle ID. Every public operation resolves the verified subject itself. There is no production demo identity, client-selected viewer or public admin/round-release/seed endpoint.
+4. Configure the native Convex deployment URL (`https://<deployment>.convex.cloud`) **and** HTTP site origin (`https://<deployment>.convex.site`) separately. Set `TAKE_HTTP_ORIGIN` to the exact HTTPS HTTP site origin, without a trailing slash. Do not derive the site origin by blindly rewriting custom domains.
+5. Deploy with `npm ci && npm run check && npx convex deploy`. Inspect the new functions, schema, crons and auth provider in the selected deployment. `npx convex run planner:plan '{}'` is an administrator-only CLI invocation of an internal function and plans today's and the next two local dates. The hourly cron thereafter maintains plans. Never invoke an admin function on behalf of an unverified client.
+
+## Variables (names, never values)
+
+| Variable | Use |
+| --- | --- |
+| `FIREBASE_PROJECT_ID` | Required nonsecret Firebase project; issuer/audience and server credential project must match. |
+| `TAKE_HTTP_ORIGIN` | Required HTTPS Convex site/custom HTTP origin. |
+| `MEDIA_VERIFIER_ORIGIN` | Required trusted worker HTTPS origin with no path or trailing slash. |
+| `MEDIA_VERIFIER_SECRET` | Required random shared server-only secret, at least 32 characters; matches the worker's `VERIFY_SHARED_SECRET`. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Server-only Firebase Admin service account JSON, with Auth deletion/revocation and Cloud Messaging permissions. Use a dedicated least-privilege account in the same project. |
+| `TAKE_ROUND_TIMEZONE` | IANA zone, defaults to `America/Los_Angeles`. |
+| `TAKE_ROUND_START_HOUR`, `TAKE_ROUND_END_HOUR` | Local-hour half-open window, defaults to 10 and 20. Integer 0–23, start < end. |
+| `TAKE_DEPLOYMENT_ENV`, `TAKE_ALLOW_DEV_SEED` | Keep `production` and `false` in production. |
+| `CONVEX_DEPLOY_KEY` | CI deployment credential only; not a runtime application variable or client credential. |
+
+Variables in `.env.example` are a template, not configured credentials. Convex deployment variables and the worker's environment are separate. No verifier configuration means `PROCESSING_UNAVAILABLE`, no receipt and no feed unlock. No Firebase server credential means generic push jobs record unavailable/retry rather than claiming delivery; account data is deleted locally and identity deletion remains explicitly `unconfigured` for a later retry. Account tombstones deny old tokens regardless.
+
+## Trusted media verifier
+
+Deploy the included `verifier/` container on a private or authenticated HTTPS service. Follow its README's exact Docker build/run configuration for immutable image/build, nonroot execution, CPU/memory/process/temp limits, ingress/body/time bounds, concurrency, and shared-secret delivery. Convex must be able to reach it by HTTPS; allow only server callers, never embed the secret in iOS. The worker does not fetch client URLs. Convex sends the actual stored bytes and SHA-256; the worker hashes those same bytes, fully decodes them, validates duration/portrait/video/audio, and returns the same hash plus trusted metadata and an optional generated JPEG. Convex independently bounds the response and rechecks the hash and <=15,000 ms result before its final serializable transaction.
+
+Set worker `VERIFY_SHARED_SECRET` and Convex `MEDIA_VERIFIER_SECRET` from the same secret-manager entry. Set the worker ingress cap at least 8 MiB for TAKE video and 2 MiB for avatars, with a strict upper cap of 20 MiB. Terminate TLS with a valid public certificate and disable/redact request bodies, authorization headers and media-grant query strings in access logs. Prohibit CDN caching on private `/v1/media/` routes. Scale worker instances rather than removing resource bounds; an overloaded/unreachable worker must fail closed.
+
+## APNs / FCM and deletion
+
+Enable Push Notifications and the appropriate remote-notification capability for the actual Apple bundle, configure its APNs auth key/team/key ID in Firebase Cloud Messaging, and use the correct development/production signing environment. The app registers its FCM token after explaining/requesting notification permission, refreshes it on token rotation, updates permission/preferences, unregisters on sign-out, and never uploads contacts. Device tokens are server-private. FCM Admin HTTP v1 sends generic daily-question/direct-reply messages with only routing identifiers, sound and alert metadata. Invalid registration tokens are retired. The client must re-fetch authorized state after any tap; payloads are not an access grant.
+
+Delivery is at-least-once, with bounded exponential retries and per-device delivery receipts so one failed target does not resend successful targets in its batch. A crash between FCM success and receipt persistence can still duplicate a generic alert; exactly-once external delivery is not claimed. A job lease prevents overlapping normal send attempts and an interrupted pending job is recovered by cron. Delivery receipts are removed after 30 days or account deletion. Daily opening commits before the sender job runs. The sender rechecks active account, token permission, preference, current round and direct-reply access immediately before each send. A social mutation racing an already in-flight external send cannot retract an alert, so the alert never contains an author, position, image, transcript or opinion. Missing APNs/signing/FCM credentials are not evidence of remote delivery.
+
+Deletion requires a Firebase token with `auth_time` within five minutes (Apple/Firebase reauthentication, not just token refresh). It marks the account unavailable before scheduling graph/content cleanup and Firebase refresh-token revocation/deletion. A minimal issuer/subject tombstone persists so an unexpired or newly replayed token cannot re-onboard that identity. Content, assets, requests, friendships, blocks, receipts, tokens, grants and authored reports are cleaned in batches. Unconfigured/failed Firebase identity deletion is retained and retried every six hours after local data deletion. Authorized administrators must resolve a permanently invalid credential rather than claim deletion of the upstream identity. To disable a user administratively, invoke the internal `admin:setDisabled` with `{ userId, disabled: true }` through the authorized Convex CLI/dashboard **before** disabling Firebase. No client can invoke that function, and it cannot reactivate a deletion tombstone. Custom JWT validation alone does not check Firebase Admin console disable/revocation on every request; a Firebase-only administrative change is not an immediate TAKE revocation.
+
+## Development seeding and launch checklist
+
+`CONVEX_DEPLOYMENT=dev:<development-name> npm run seed:dev` refuses production/extra arguments. Its internal function also requires `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`. It creates only server round plans from the two requested prompts, not users, friendships, media, receipts or authentication bypasses. The native offline demo is completely separate and does not depend on this seed.
+
+Before production launch, verify a real Firebase Apple ID token succeeds and wrong audience/issuer/algorithm/expired tokens fail; run the full authenticated upload→trusted worker→receipt→media path on the real deployment; test nonmutual/locked accounts and revocation with known IDs/grants; open a scheduled round across your selected zone policy; test FCM/APNs on a signed physical device; confirm upstream identity deletion and refresh-token revocation; confirm ingress/log/cache policies and bandwidth budget. None of those external-service/device checks can be inferred from local unit tests or a simulator build.

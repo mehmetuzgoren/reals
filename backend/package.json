@@ -1,0 +1,28 @@
+{
+  "name": "take-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "codegen": "convex codegen",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:media": "vitest run --config vitest.media.config.ts",
+    "check": "npm run typecheck && npm test",
+    "seed:dev": "node scripts/seed-dev.mjs"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
+    "convex": "1.50.0",
+    "firebase-admin": "14.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "convex-test": "0.0.71",
+    "typescript": "^5.9.3",
+    "vitest": "5.1.0"
+  }
+}
