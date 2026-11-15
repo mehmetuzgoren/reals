@@ -1,0 +1,14 @@
+{
+  "name": "take-media-verifier",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node --max-old-space-size=128 src/server.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "check": "node --check src/config.mjs && node --check src/process.mjs && node --check src/mp4.mjs && node --check src/media.mjs && node --check src/server.mjs && npm test"
+  }
+}
