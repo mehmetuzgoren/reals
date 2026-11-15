@@ -125,7 +125,7 @@ struct RealsComposerView: View {
             .padding(.horizontal, 58).frame(maxWidth: .infinity, minHeight: 44)
             .overlay(alignment: .leading) {
                 Button { close() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 19, weight: .regular)).frame(width: 44, height: 44)
+                    Image(systemName: "chevron.left").font(.system(size: 19, weight: .regular)).frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).padding(.leading, 8)
                 .accessibilityLabel("Close").accessibilityIdentifier("Close")
