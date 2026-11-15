@@ -34,7 +34,7 @@ struct TakeDetailView: View {
                             controls(id: reply.id, author: reply.author, kind: .reply)
                         }
                     }
-                    if cursor != nil { Button("Load earlier conversation's next replies") { Task { await load(more: true) } }.frame(minHeight: 44) }
+                    if cursor != nil { Button("Load more replies") { Task { await load(more: true) } }.frame(minHeight: 44) }
                 } else if let failure { EmptyCard(symbol: "lock", title: "This conversation is unavailable.", message: failure) }
                 else { ProgressView("Opening conversation…").frame(maxWidth: .infinity).padding(50) }
                 if reported { InlineNotice(text: "Report received. Thanks for helping keep TAKE safe.", color: TakeTheme.lavender) }
@@ -82,12 +82,13 @@ struct TakeDetailView: View {
         guard let service = model.service else { return }
         let epoch = UUID(); loadEpoch = epoch
         let session = model.generation
+        let revision = model.accessRevision
         do {
             let value = try await service.detail(originalId: originalID)
             let page = try await service.replies(originalId: originalID, cursor: more ? cursor : nil)
-            guard epoch == loadEpoch, session == model.generation else { return }
+            guard epoch == loadEpoch, model.isCurrentAccess(generation: session, revision: revision) else { return }
             original = value; replies = more ? replies + page.items : page.items; cursor = page.nextCursor; failure = nil
-        } catch { guard epoch == loadEpoch, session == model.generation else { return }; original = nil; replies = []; PlaybackCoordinator.shared.clear(); failure = error.localizedDescription }
+        } catch { guard epoch == loadEpoch, model.isCurrentAccess(generation: session, revision: revision) else { return }; original = nil; replies = []; PlaybackCoordinator.shared.clear(); failure = error.localizedDescription }
     }
     private func makeReply(_ original: OriginalSummary) {
         guard let owner = model.service?.viewerID else { return }

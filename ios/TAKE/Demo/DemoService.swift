@@ -181,7 +181,7 @@ final class DemoService: TakeService, DemoControlling {
         for step in 1...5 { try await Task.sleep(for: .milliseconds(110)); progress(Double(step) / 5) }
         guard !state.failNext else {
             state.failNext = false; changed()
-            throw ServiceFailure(code: "DEMO_UPLOAD_FAILED", message: "Simulated upload failure. Your clip is saved; retry when you're ready. The feed is still locked.", retryable: true)
+            throw ServiceFailure(code: "DEMO_UPLOAD_FAILED", message: "Simulated upload failure. Your clip is saved; retry when you're ready. Publication wasn't confirmed, so no new access was granted.", retryable: true)
         }
         guard clip.durationMs > 0, clip.durationMs <= 15_000, FileManager.default.fileExists(atPath: clip.url.path) else { throw ServiceFailure(code: "INVALID_MEDIA", message: "This clip is missing or longer than 15 seconds. Please retake it.", retryable: false) }
         let target = directory.appendingPathComponent("\(intent.uploadId).mp4")

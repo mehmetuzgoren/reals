@@ -174,4 +174,75 @@ final class DemoServiceTests: XCTestCase {
             checkFalse(try await asset.loadTracks(withMediaType: .video).isEmpty)
         }
     }
+
+    func testConcurrentDifferentOriginalsCommitOnlyOnce() async throws {
+        let first = try await draft()
+        let second = try await draft()
+        let firstIntent = try await service.beginUpload(draft: first)
+        let secondIntent = try await service.beginUpload(draft: second)
+        try await service.upload(clip: first.clip!, intent: firstIntent) { _ in }
+        try await service.upload(clip: second.clip!, intent: secondIntent) { _ in }
+        let firstTask = Task { try await service.finalize(uploadId: firstIntent.uploadId) }
+        let secondTask = Task { try await service.finalize(uploadId: secondIntent.uploadId) }
+        var successes = 0
+        for task in [firstTask, secondTask] {
+            do { _ = try await task.value; successes += 1 }
+            catch { checkEqual((error as? ServiceFailure)?.code, "ALREADY_PUBLISHED") }
+        }
+        checkEqual(successes, 1)
+        checkEqual(try await service.profile(cursor: nil).originals.items.count, 1)
+    }
+
+    func testDeletionRemovesContentAndRelationships() async throws {
+        let result = try await publish(draft())
+        try await service.requestDeletion()
+        service.switchIdentity(.alex)
+        checkFalse(try await service.friends().approved.contains { $0.id == "casey" })
+        await denied { try await self.service.detail(originalId: result.originalId!) }
+        checkTrue(try await service.search(username: "casey").isEmpty)
+    }
+
+    func testStaleIdentityCannotPersistAnotherViewersDraft() async throws {
+        let model = AppModel()
+        model.service = service
+        model.viewer = try await service.session().profile
+        model.acceptToday(try await service.today())
+        let prior = try await draft()
+        service.switchIdentity(.dana)
+        _ = model.saveDraft(prior)
+        XCTAssertNil(model.recoveredDraft)
+    }
+
+    func testNewRoundRejectsOutOfOrderUnlockedSnapshotAndMediaCallback() async throws {
+        _ = try await publish(draft())
+        let model = AppModel()
+        model.service = service
+        let old = try await service.today()
+        checkTrue(model.acceptToday(old))
+        let generation = model.generation
+        let revision = model.accessRevision
+        service.releaseRound(2)
+        let next = try await service.today()
+        let orderedNext = TodayState(serverNow: old.serverNow + 100, round: next.round, viewerReceipt: next.viewerReceipt, canViewFriends: next.canViewFriends, ownOriginal: next.ownOriginal, friendPresence: next.friendPresence)
+        checkTrue(model.acceptToday(orderedNext))
+        checkFalse(model.isCurrentAccess(generation: generation, revision: revision))
+        checkFalse(model.acceptToday(old))
+        checkFalse(model.today!.canViewFriends)
+        checkEqual(model.today!.round!.id, "demo-round-2")
+        checkTrue(model.feed.isEmpty)
+    }
+
+    func testSignOutRemovesPersistedDraftBeforeIdentityIsCleared() async throws {
+        let model = AppModel()
+        model.service = service
+        model.viewer = try await service.session().profile
+        model.acceptToday(try await service.today())
+        let stored = model.saveDraft(try await draft())
+        let file = try XCTUnwrap(stored.clip?.url)
+        checkTrue(FileManager.default.fileExists(atPath: file.path))
+        await model.signOut()
+        checkFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertNil(model.recoveredDraft)
+        XCTAssertNil(model.service)
+    }
 }

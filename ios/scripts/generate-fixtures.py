@@ -15,7 +15,6 @@ palettes = {
 for index, (name, (bg, skin, hair, shirt, frequency)) in enumerate(palettes.items()):
     image = Image.new("RGB", (600, 900), bg)
     d = ImageDraw.Draw(image)
-    d.ellipse((-130, -160, 730, 630), fill="#ffffff18" if False else bg)
     d.rounded_rectangle((36, 40, 224, 82), radius=21, fill="#141815")
     d.text((55, 51), "FICTIONAL SAMPLE", font=font(16), fill="#eeeede")
     d.ellipse((-70, 585, 680, 1250), fill=shirt)

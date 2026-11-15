@@ -63,9 +63,10 @@ struct ContentVideoCard: View {
         guard let service = model.service else { return }
         loading = true; failure = nil; attemptedPlayback = true
         let epoch = model.generation
+        let revision = model.accessRevision
         do {
             let grant = try await service.playback(contentId: id, kind: kind, asset: "video")
-            guard epoch == model.generation, let url = URL(string: grant.url) else { throw ServiceFailure.notFound }
+            guard model.isCurrentAccess(generation: epoch, revision: revision), let url = URL(string: grant.url) else { throw ServiceFailure.notFound }
             playback.play(id: id, url: url)
         } catch { failure = "Video unavailable. \(error.localizedDescription) Tap play to try again." }
         loading = false
@@ -73,15 +74,16 @@ struct ContentVideoCard: View {
     private func loadThumbnail() async {
         guard !model.isDemo, let service = model.service else { return }
         let epoch = model.generation
+        let revision = model.accessRevision
         do {
             let grant = try await service.playback(contentId: id, kind: kind, asset: "thumbnail")
-            guard epoch == model.generation, let url = URL(string: grant.url) else { return }
+            guard model.isCurrentAccess(generation: epoch, revision: revision), let url = URL(string: grant.url) else { return }
             let configuration = URLSessionConfiguration.ephemeral
             configuration.urlCache = nil
             let session = URLSession(configuration: configuration)
             defer { session.invalidateAndCancel() }
             let (bytes, response) = try await session.data(from: url)
-            guard epoch == model.generation, (response as? HTTPURLResponse)?.statusCode == 200, bytes.count <= 5_242_880 else { return }
+            guard model.isCurrentAccess(generation: epoch, revision: revision), (response as? HTTPURLResponse)?.statusCode == 200, bytes.count <= 5_242_880 else { return }
             thumbnail = UIImage(data: bytes)
         } catch {}
     }

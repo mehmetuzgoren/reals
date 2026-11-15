@@ -7,7 +7,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if model.needsOnboarding { ProfileOnboardingView() }
-            else if model.viewer != nil { MainTabsView().id(model.generation) }
+            else if model.viewer != nil { MainTabsView().id(model.generation.uuidString + model.accessRevision.uuidString) }
             else { WelcomeView() }
         }
         .environmentObject(model)
@@ -17,10 +17,11 @@ struct RootView: View {
         .task {
             NotificationCoordinator.shared.onOpen = { Task { model.selectedTab = 0; await model.refresh() } }
             if UserDefaults.standard.string(forKey: "TAKE.lastMode") == "demo" || ProcessInfo.processInfo.arguments.contains("--demo") { await model.enterDemo() }
+            else if UserDefaults.standard.string(forKey: "TAKE.lastMode") == "live" { await model.restoreLive() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { PlaybackCoordinator.shared.pause() }
-            if phase == .active, model.viewer != nil { Task { await model.refresh() } }
+            if phase == .active, model.viewer != nil { Task { await model.refresh(); if !model.isDemo { await NotificationCoordinator.shared.refreshRegistration() } } }
         }
         .onReceive(NotificationCenter.default.publisher(for: .takePrivateAccessInvalidated)) { _ in
             PlaybackCoordinator.shared.clear(); URLCache.shared.removeAllCachedResponses()
