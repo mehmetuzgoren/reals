@@ -72,7 +72,7 @@ The development seed is deliberately narrow:
 CONVEX_DEPLOYMENT=dev:<development-name> npm run seed:dev
 ```
 
-It additionally requires deployment `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`, refuses production/extra arguments, and creates only the two round plans. **It does not create Firebase identities, friendships, uploaded media, receipts, or the probe's acceptance fixture.** The [deployed probe](../verification/README.md) needs a dedicated staging fixture populated through real authenticated onboarding/publication: Alex↔Blair, Alex↔Casey, Blair↔Casey, Alex↔Dana, no Blair↔Dana; published Alex original/Blair reply; Casey/Dana receipts; and a separate locked identity. Keep fixture IDs and tokens private. Native demo fixtures never write to this deployment.
+It additionally requires deployment `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`, refuses production/extra arguments, and invokes the server planner using two prompt templates across the current and next two local dates. **It does not create Firebase identities, friendships, uploaded media, receipts, or the probe's acceptance fixture.** The [deployed probe](../verification/README.md) needs a dedicated staging fixture populated through real authenticated onboarding/publication: Alex↔Blair, Alex↔Casey, Blair↔Casey, Alex↔Dana, no Blair↔Dana; published Alex original/Blair reply; Casey/Dana receipts; and a separate locked identity. Keep fixture IDs and tokens private. Native demo fixtures never write to this deployment.
 
 ### Firebase ID-token boundary
 

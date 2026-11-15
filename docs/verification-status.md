@@ -7,7 +7,7 @@ The three PRs remain independent and main-based; this docs branch does not inclu
 | Layer | Snapshot / evidence |
 | --- | --- |
 | Base | `main` at `3151ed0772f208dcb1700580bf85bdeed79c23b2`. |
-| Docs/probe | [PR #1](https://github.com/mehmetuzgoren/reals/pull/1); final independent tooling review at `cdd871db9147b09337c8f93a01f1603c5446ccfa`. Later source/setup/evidence edits do not change the probe. |
+| Docs/probe | [PR #1](https://github.com/mehmetuzgoren/reals/pull/1); earlier full tooling review at `cdd871db9147b09337c8f93a01f1603c5446ccfa`. Setup reconciliation then tightened the media cap to 8 MiB with a boundary regression; the narrow delta was independently rechecked at `f2e885c01226a62831e6e3e683b9466ac10a72e9`. |
 | Native UI actually installed | [PR #2](https://github.com/mehmetuzgoren/reals/pull/2), source `1005036a4fe5c67ec7409844bbdbec83ad679578`; managed Revyl build `01M7GGW83TZ9P83QH3V1W10F0K`, version `b73f5572-2591-4bad-8ddf-e473fb8258ff`; bundle `com.take.app` version/build `1.0`/`1`. |
 | Native compatibility source inspected | `dbc769de2b1d2d712fc48e91c6f01809236d4db4`; capture/export 8 MiB cap, explicit 8/10/50 page sizes, upload acknowledgment binding, and downloaded-player expiry. Its queued build was superseded before final acceptance. |
 | Backend independently executed | [PR #3](https://github.com/mehmetuzgoren/reals/pull/3), source `468c8176b8ce6cea81b5c8182b7cf3dfe82b8486`; detached review checkout, Node 24.22.3, FFmpeg 6.1.1. |
