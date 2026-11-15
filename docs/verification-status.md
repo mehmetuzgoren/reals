@@ -4,9 +4,9 @@
 
 Baseline: `3151ed0772f208dcb1700580bf85bdeed79c23b2` on `main`, containing only `.gitignore`. No native or backend implementation was present when this documentation was authored. Names drawn from the accepted integration contract are clearly marked pending in [setup](setup.md).
 
-Executed on Linux/Node 24: `node --test verification/*.test.mjs` passed 11 tests, `node verification/check-docs.mjs` checked seven Markdown files with zero missing local destinations, and `git diff --check` passed. The unit tests exercised 25 simulated transport assertions and verified deliberate leak/protocol failure detection. These are tests of the probe, not the product.
+Executed on Linux/Node 24: `node --test verification/*.test.mjs` passed 13 tests, `node verification/check-docs.mjs` checked seven Markdown files with zero missing local destinations, and `git diff --check` passed. The unit tests exercised 25 simulated transport assertions and verified deliberate leak/protocol failure detection. These are tests of the probe, not the product.
 
-Independent read-only review of `ccea43caec359abc55b4fce78ba359e16cb957b4` found two probe blind spots: unvalidated nested Round fields and discarded client-visible log/error fields. Added recursive Round/options checks, strict response/failure envelopes with generic denial text and no client logs, generic media error bodies, and adversarial regressions. Recheck of these corrections is pending; the final reviewed revision belongs in the handoff record. Tooling CI passed at the original head.
+Independent read-only review of `ccea43caec359abc55b4fce78ba359e16cb957b4` found unvalidated nested Round fields and discarded client-visible log/error fields. Recheck at `c1038af30e62f5b1520cf10ae314bd22b782b941` confirmed those corrections but identified the same projection problem in success-page/detail values. Replaced piecemeal checks with strict recursive validation of every consumed success DTO before any field projection, retained generic no-log denial envelopes/media bodies, and added adversarial regressions for all probe paths. Final recheck is pending; its reviewed revision belongs in the handoff record. Tooling CI passed at both preceding heads.
 
 No real deployment, iOS build, XCTest, phone session, actual media inspection, or notification delivery ran in this snapshot.
 

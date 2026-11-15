@@ -8,8 +8,14 @@ const manifest = {
 };
 const tokens = { casey: 'casey-token', dana: 'dana-token', locked: 'locked-token' };
 const profile = { id: 'author', username: 'author', displayName: 'Author', avatar: null };
-const original = { id: 'original', roundId: 'round', author: profile, visibleReplyCount: 1 };
-const reply = { id: 'reply', originalId: 'original', roundId: 'round', author: profile, publishedAt: 1000 };
+const original = {
+  id: 'original', roundId: 'round', author: profile, optionId: 'yes', publishedAt: 1000,
+  durationMs: 1000, thumbnailAssetId: null, visibleReplyCount: 1,
+};
+const reply = {
+  id: 'reply', originalId: 'original', roundId: 'round', author: profile, publishedAt: 1000,
+  durationMs: 1000, thumbnailAssetId: null,
+};
 const round = {
   id: 'round', question: 'Do you like pineapple on pizza?', options: [{ id: 'yes', label: 'Yes' }],
   opensAt: 1000, closesAt: null, isCurrent: true,
@@ -39,7 +45,7 @@ function transport(transform = (value) => value) {
     assert.ok(identity);
     let value;
     if (path === 'rounds:today') value = identity === 'locked' ? structuredClone(safeToday) : {
-      round, viewerReceipt: { roundId: 'round' }, canViewFriends: true,
+      ...safeToday, round, viewerReceipt: { roundId: 'round', publishedAt: 1000, originalId: null }, canViewFriends: true,
     };
     if (path === 'takes:feed') value = { items: identity === 'locked' ? [] : [
       { ...original, visibleReplyCount: identity === 'casey' ? 1 : 0 },
@@ -135,9 +141,9 @@ test('pagination follows cursors and detects cycles', async () => {
   const probe = new ConvexProbe(manifest, tokens, async (_, init) => {
     calls++;
     const { args } = JSON.parse(init.body);
-    return success({ items: [calls], nextCursor: args.cursor === null ? 'next' : null });
+    return success({ items: [{ ...original, id: `item-${calls}` }], nextCursor: args.cursor === null ? 'next' : null });
   });
-  assert.deepEqual(await probe.page('takes:feed', {}, 'casey'), [1, 2]);
+  assert.deepEqual((await probe.page('takes:feed', {}, 'casey')).map((item) => item.id), ['item-1', 'item-2']);
   const cyclic = new ConvexProbe(manifest, tokens, async () => success({ items: [], nextCursor: 'repeat' }));
   await assert.rejects(() => cyclic.page('takes:feed', {}, 'casey'), ProbeFailure);
 });
@@ -180,4 +186,33 @@ test('Dana hidden-count/content leak and a reply in the main feed fail independe
   assert.equal(results.find((row) => row.id === 'dana.original-only-feed').passed, false);
   assert.equal(results.find((row) => row.id === 'dana.filtered-flat-replies').passed, false);
   assert.equal(results.find((row) => row.id === 'casey.filtered-flat-replies').passed, true);
+});
+
+test('every consumed success DTO rejects unknown fields before any projection or denial assertion', async () => {
+  for (const [path, identity, id] of [
+    ['takes:feed', 'locked', 'locked.no-feed'],
+    ['takes:feed', 'dana', 'dana.original-only-feed'],
+    ['takes:detail', 'dana', 'dana.detail-visible-count'],
+    ['replies:list', 'dana', 'dana.filtered-flat-replies'],
+    ['rounds:today', 'locked', 'locked.safe-today'],
+    ['captions:get', 'casey', 'casey.reply-direct-caption'],
+    ['media:createPlaybackGrant', 'casey', 'casey.reply-direct-video'],
+  ]) {
+    const results = await runProbe(new ConvexProbe(manifest, tokens, transport((value, actualPath, actualIdentity) => {
+      if (actualPath === path && actualIdentity === identity) return { ...value, hiddenReply: { caption: 'private', author: 'hidden' } };
+      return value;
+    })));
+    assert.equal(results.find((row) => row.id === id).passed, false);
+  }
+});
+
+test('nested content/profile leaks and omitted required nulls are rejected', async () => {
+  for (const altered of [
+    { ...original, author: { ...profile, position: 'private' } },
+    { ...original, hiddenReply: 'private' },
+    { ...original, thumbnailAssetId: undefined },
+  ]) {
+    const probe = new ConvexProbe(manifest, tokens, async () => success(altered));
+    await assert.rejects(() => probe.value('query', 'takes:detail', {}, 'dana'), ProbeFailure);
+  }
 });

@@ -11,6 +11,59 @@ function check(condition) {
   if (!condition) throw new ProbeFailure();
 }
 
+function keys(value, allowed) {
+  check(value && typeof value === 'object' && !Array.isArray(value));
+  check(Object.keys(value).every((key) => allowed.includes(key)));
+}
+
+const text = (value) => check(typeof value === 'string' && value.length > 0);
+const bool = (value) => check(typeof value === 'boolean');
+const number = (value) => check(Number.isFinite(value));
+const nullable = (validate) => (value) => { if (value !== null) validate(value); };
+const list = (validate) => (value) => {
+  check(Array.isArray(value));
+  for (const item of value) validate(item);
+};
+const object = (fields) => (value) => {
+  keys(value, Object.keys(fields));
+  check(Object.keys(value).length === Object.keys(fields).length);
+  for (const [field, validate] of Object.entries(fields)) validate(value[field]);
+};
+const profile = object({
+  id: text, username: text, displayName: text, avatar: nullable(object({ url: text })),
+});
+const round = object({
+  id: text, question: text, options: list(object({ id: text, label: text })),
+  opensAt: number, closesAt: nullable(number), isCurrent: bool,
+});
+const receipt = object({ roundId: text, publishedAt: number, originalId: nullable(text) });
+const original = object({
+  id: text, roundId: text, author: profile, optionId: text, publishedAt: number,
+  durationMs: (value) => check(Number.isFinite(value) && value > 0 && value <= 15_000),
+  thumbnailAssetId: nullable(text),
+  visibleReplyCount: (value) => check(Number.isInteger(value) && value >= 0),
+});
+const reply = object({
+  id: text, originalId: text, roundId: text, author: profile, publishedAt: number,
+  durationMs: (value) => check(Number.isFinite(value) && value > 0 && value <= 15_000),
+  thumbnailAssetId: nullable(text),
+});
+const page = (item) => object({ items: list(item), nextCursor: nullable(text) });
+const resultSchemas = {
+  'rounds:today': { kind: 'query', validate: object({
+    serverNow: number, round: nullable(round), viewerReceipt: nullable(receipt), canViewFriends: bool,
+    ownOriginal: nullable(original), friendPresence: list(object({ profile, hasPublished: bool })),
+  }) },
+  'takes:feed': { kind: 'query', validate: page(original) },
+  'takes:detail': { kind: 'query', validate: original },
+  'replies:list': { kind: 'query', validate: page(reply) },
+  'captions:get': { kind: 'query', validate: object({
+    status: (value) => check(['unavailable', 'pending', 'ready', 'failed'].includes(value)),
+    text: nullable(text),
+  }) },
+  'media:createPlaybackGrant': { kind: 'action', validate: object({ url: text, expiresAt: number }) },
+};
+
 function origin(value) {
   const url = new URL(value);
   check(url.protocol === 'https:' && !url.username && !url.password);
@@ -39,7 +92,7 @@ export class ConvexProbe {
   }
 
   async call(kind, path, args, identity) {
-    check(['query', 'action'].includes(kind));
+    check(resultSchemas[path]?.kind === kind);
     check(typeof this.tokens[identity] === 'string');
     const response = await this.fetcher(`${this.manifest.convexUrl}/api/${kind}`, {
       method: 'POST',
@@ -52,6 +105,7 @@ export class ConvexProbe {
     check(data.logLines === undefined || (Array.isArray(data.logLines) && data.logLines.length === 0));
     if (response.ok && data.status === 'success') {
       keys(data, ['status', 'value', 'logLines']);
+      resultSchemas[path].validate(data.value);
       return { ok: true, value: data.value };
     }
     if (data.status === 'error' && data.errorData) {
@@ -137,42 +191,16 @@ export class ConvexProbe {
   }
 }
 
-function keys(value, allowed) {
-  check(value && typeof value === 'object' && !Array.isArray(value));
-  check(Object.keys(value).every((key) => allowed.includes(key)));
-}
-
-function minimalProfile(value) {
-  keys(value, ['id', 'username', 'displayName', 'avatar']);
-  for (const key of ['id', 'username', 'displayName']) check(typeof value[key] === 'string');
-  if (value.avatar !== null) {
-    keys(value.avatar, ['url']);
-    check(typeof value.avatar.url === 'string');
-  }
-}
-
 function currentRound(value, roundId) {
-  keys(value, ['id', 'question', 'options', 'opensAt', 'closesAt', 'isCurrent']);
-  check(value.id === roundId && typeof value.question === 'string' && value.isCurrent === true);
-  check(Number.isFinite(value.opensAt) && (value.closesAt === null || Number.isFinite(value.closesAt)));
-  check(Array.isArray(value.options) && value.options.length > 0);
-  for (const option of value.options) {
-    keys(option, ['id', 'label']);
-    check(typeof option.id === 'string' && typeof option.label === 'string');
-  }
+  round(value);
+  check(value.id === roundId && value.isCurrent === true && value.options.length > 0);
 }
 
 export function lockedToday(value, roundId) {
-  keys(value, ['serverNow', 'round', 'viewerReceipt', 'canViewFriends', 'ownOriginal', 'friendPresence']);
-  check(Number.isFinite(value.serverNow) && value.viewerReceipt === null);
+  resultSchemas['rounds:today'].validate(value);
+  check(value.viewerReceipt === null);
   currentRound(value.round, roundId);
   check(value.canViewFriends === false && value.ownOriginal === null);
-  check(Array.isArray(value.friendPresence));
-  for (const presence of value.friendPresence) {
-    keys(presence, ['profile', 'hasPublished']);
-    minimalProfile(presence.profile);
-    check(typeof presence.hasPublished === 'boolean');
-  }
 }
 
 export async function runProbe(probe, report = () => {}) {
