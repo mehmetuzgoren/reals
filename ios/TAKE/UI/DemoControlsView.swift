@@ -9,13 +9,13 @@ struct DemoControlsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Label("Developer-only Demo controls", systemImage: "wrench.and.screwdriver").font(.headline).foregroundStyle(TakeTheme.lavender)
+                    Label("Developer-only Demo controls", systemImage: "wrench.and.screwdriver").font(.headline).foregroundStyle(TakeTheme.white)
                     Text("These controls affect only isolated, persisted offline sample data. They never change a live account or bypass server authorization.").font(.subheadline).foregroundStyle(TakeTheme.muted)
                 }
                 Section("Fictional identity") {
                     ForEach(DemoIdentity.allCases) { identity in
                         Button { Task { await model.switchIdentity(identity); dismiss() } } label: {
-                            HStack { Text(identity.name); Spacer(); if model.demo?.identity == identity { Image(systemName: "checkmark").foregroundStyle(TakeTheme.lime) } }
+                            HStack { Text(identity.name); Spacer(); if model.demo?.identity == identity { Image(systemName: "checkmark").foregroundStyle(TakeTheme.white) } }
                         }.foregroundStyle(TakeTheme.white).accessibilityIdentifier("Switch to \(identity.name)")
                     }
                 }
@@ -27,7 +27,7 @@ struct DemoControlsView: View {
                 Section("Publication scenarios") {
                     Button("Simulate successful sample publication") { model.demo?.simulatePublication(); dismiss() }.accessibilityIdentifier("Simulate successful publication")
                     Text("Developer shortcut: records a successful demo-only sample receipt. The normal Record → Preview → Publish flow remains available.").font(.caption).foregroundStyle(TakeTheme.muted)
-                    Button(failureArmed ? "Next upload will fail" : "Fail the next upload") { model.demo?.failNextUpload(); failureArmed = true }.foregroundStyle(TakeTheme.coral).accessibilityIdentifier("Fail next upload")
+                    Button(failureArmed ? "Next upload will fail" : "Fail the next upload") { model.demo?.failNextUpload(); failureArmed = true }.foregroundStyle(TakeTheme.white).accessibilityIdentifier("Fail next upload")
                     Text("A failed upload keeps the feed locked. Retry the saved clip to finish publication.").font(.caption).foregroundStyle(TakeTheme.muted)
                 }
                 Section("Visibility matrix") {

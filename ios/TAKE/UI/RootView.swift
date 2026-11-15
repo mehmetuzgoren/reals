@@ -12,7 +12,7 @@ struct RootView: View {
         }
         .environmentObject(model)
         .preferredColorScheme(.dark)
-        .tint(TakeTheme.lime)
+        .tint(TakeTheme.white)
         .alert("A quick heads-up", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
         .task {
             NotificationCoordinator.shared.onOpen = { Task { model.selectedTab = 0; await model.refresh() } }
@@ -37,30 +37,13 @@ struct WelcomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                HStack {
-                    Text("TAKE").font(.system(size: 30, weight: .black, design: .rounded)).tracking(-1)
-                    Spacer()
-                    Eyebrow(text: "A LITTLE PERSPECTIVE", color: TakeTheme.lime)
-                }
+                Text("TAKE").font(.system(size: 22, weight: .bold)).tracking(-0.6).frame(maxWidth: .infinity)
                 .padding(.top, 28)
-                ZStack {
-                    RoundedRectangle(cornerRadius: 36).fill(TakeTheme.lavender).rotationEffect(.degrees(-4))
-                    VStack(alignment: .leading, spacing: 18) {
-                        HStack { Image(systemName: "quote.opening").font(.system(size: 44, weight: .black)); Spacer(); Text("15s").font(.headline).padding(12).background(.black.opacity(0.08), in: Capsule()) }
-                        Text("Big question.\nSmall takes.").font(.system(.largeTitle, design: .rounded, weight: .black)).tracking(-1)
-                        HStack(spacing: -9) {
-                            ForEach(DemoIdentity.allCases) { identity in AvatarView(profile: PublicProfile(id: identity.rawValue, username: identity.rawValue, displayName: identity.name, avatar: nil), size: 52).overlay(Circle().stroke(TakeTheme.lavender, lineWidth: 3)) }
-                            Spacer()
-                            Image(systemName: "arrow.up.right").font(.title.bold())
-                        }
-                    }
-                    .padding(28).foregroundStyle(TakeTheme.background)
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("One question.\nYour perspective.").font(.system(.largeTitle, weight: .bold)).tracking(-1)
+                    Text("Up to 15 seconds. Just you and the people you know.").font(.subheadline).foregroundStyle(TakeTheme.muted)
                 }
-                .padding(.vertical, 12)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Less scrolling.\nMore seeing each other.").font(.title.bold()).tracking(-0.5)
-                    Text("One daily question. Your honest opinion. The people you actually know.").font(.body).foregroundStyle(TakeTheme.muted)
-                }
+                .padding(.top, 76).padding(.bottom, 24)
                 VStack(alignment: .leading, spacing: 18) {
                     step("01", "Pick a side", "A fresh question, at a surprise time each day.")
                     step("02", "Give your take", "Up to 15 seconds. You post before you peek.")
@@ -81,7 +64,7 @@ struct WelcomeView: View {
                     }
                 }
                 .signInWithAppleButtonStyle(.white)
-                .frame(height: 54).clipShape(RoundedRectangle(cornerRadius: 18))
+                .frame(height: 54).clipShape(Capsule())
                 .disabled((try? LiveConfiguration.load()) == nil)
                 if (try? LiveConfiguration.load()) == nil { Text("Live sign-in isn't available in this build. The complete offline demo is ready to explore.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity) }
                 Text("Only approved friends who have posted can see your take. No public profiles. No followers.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity)
@@ -92,7 +75,7 @@ struct WelcomeView: View {
     }
     private func step(_ number: String, _ title: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            Text(number).font(.caption.monospaced().bold()).foregroundStyle(TakeTheme.lime).padding(10).background(TakeTheme.raised, in: Circle())
+            Text(number).font(.caption.monospaced().bold()).foregroundStyle(TakeTheme.white).padding(10).background(TakeTheme.raised, in: Circle())
             VStack(alignment: .leading, spacing: 3) { Text(title).font(.headline); Text(text).font(.subheadline).foregroundStyle(TakeTheme.muted) }
         }
     }
@@ -107,7 +90,7 @@ struct ProfileOnboardingView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
-                        Eyebrow(text: "MAKE IT YOURS", color: TakeTheme.lime)
+                        Eyebrow(text: "MAKE IT YOURS", color: TakeTheme.white)
                         Text("A name. A face.\nA point of view.").font(.largeTitle.bold())
                         Text("Your username helps friends find you. You can add a photo in Profile.").foregroundStyle(TakeTheme.muted)
                     }.listRowBackground(Color.clear)

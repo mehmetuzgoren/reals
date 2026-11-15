@@ -19,41 +19,38 @@ struct ContentVideoCard: View {
     private var active: Bool { playback.activeID == id }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                AvatarView(profile: author, size: 34)
+                Text(author.displayName).font(.subheadline.bold())
+                Spacer(minLength: 8)
+                if let option { Text(option).font(.subheadline).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.trailing) }
+                Button { Task { await toggleCaptions() } } label: { Image(systemName: "captions.bubble").font(.body).frame(width: 44, height: 44).foregroundStyle(TakeTheme.muted) }.accessibilityLabel("Captions")
+            }
             ZStack(alignment: .bottomLeading) {
                 if active, let player = playback.player {
-                    VideoPlayer(player: player).frame(minHeight: 340).accessibilityLabel("Video by \(author.displayName)")
+                    VideoPlayer(player: player).accessibilityLabel("Video by \(author.displayName)")
                 } else {
                     ZStack {
-                        LinearGradient(colors: [TakeTheme.raised, TakeTheme.background], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        if let thumbnail { Image(uiImage: thumbnail).resizable().scaledToFill().frame(height: 350).clipped() }
-                        else if sample, let image = UIImage(named: "poster-\(author.id)") { Image(uiImage: image).resizable().scaledToFill().frame(height: 350).clipped() }
-                        else { VStack(spacing: 14) { AvatarView(profile: author, size: 110); Text("\(author.displayName)'s \(kind == .original ? "take" : "reply")").font(.headline).foregroundStyle(TakeTheme.white) } }
-                        LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .center, endPoint: .bottom)
+                        TakeTheme.surface
+                        if let thumbnail { Image(uiImage: thumbnail).resizable().scaledToFit() }
+                        else if sample, let image = UIImage(named: "poster-\(author.id)") { Image(uiImage: image).resizable().scaledToFit().saturation(0) }
                         Button { Task { await play() } } label: {
-                            Group { if loading { ProgressView().tint(TakeTheme.background) } else { Image(systemName: "play.fill").font(.title2).offset(x: 2) } }.frame(width: 68, height: 68).foregroundStyle(TakeTheme.background).background(TakeTheme.white.opacity(0.96), in: Circle())
+                            Group { if loading { ProgressView().tint(TakeTheme.white) } else { Image(systemName: "play.fill").font(.title2).offset(x: 2) } }.frame(width: 64, height: 64).foregroundStyle(TakeTheme.white).background(TakeTheme.background.opacity(0.5), in: Circle())
                         }.buttonStyle(.plain).disabled(loading).accessibilityLabel("Play \(author.displayName)'s \(kind == .original ? "take" : "reply")").accessibilityIdentifier("Play \(author.displayName)")
-                    }.frame(height: 350)
+                    }
                 }
                 if !active {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let option { Text(option).font(.headline.bold()).foregroundStyle(TakeTheme.background).padding(.horizontal, 14).padding(.vertical, 8).background(TakeTheme.lime, in: Capsule()) }
-                        HStack { if sample { Label("LOCAL SAMPLE", systemImage: "sparkles").font(.caption2.bold()).tracking(1) }; Spacer(); Text("\(Int((durationMs / 1_000).rounded(.up)))s").font(.caption.monospaced().bold()) }.foregroundStyle(.white)
-                    }.padding(20).allowsHitTesting(false)
+                    HStack { if sample { Text("LOCAL SAMPLE").font(.caption2.bold()).tracking(1) }; Spacer(); Text("\(Int((durationMs / 1_000).rounded(.up)))s").font(.caption.monospaced()) }.foregroundStyle(TakeTheme.white).padding(16).background(.black.opacity(0.35)).allowsHitTesting(false)
                 }
             }
-            HStack(spacing: 12) {
-                AvatarView(profile: author, size: 40)
-                VStack(alignment: .leading, spacing: 2) { Text(author.displayName).font(.headline); Text("@\(author.username)").font(.caption).foregroundStyle(TakeTheme.muted) }
-                Spacer()
-                Button { Task { await toggleCaptions() } } label: { Image(systemName: "captions.bubble").font(.title3).frame(width: 44, height: 44).foregroundStyle(TakeTheme.muted) }.accessibilityLabel("Captions")
-            }.padding(18)
-            if sample { Text("Fictional sample video with synthetic sound. Not a live recording.").font(.caption2).foregroundStyle(TakeTheme.muted).padding(.horizontal, 18).padding(.bottom, 12) }
-            if showCaptions { Text(caption?.status == "ready" ? (caption?.text ?? "Captions unavailable.") : "Captions aren't available for this video.").font(.subheadline).foregroundStyle(TakeTheme.muted).padding(.horizontal, 18).padding(.bottom, 16) }
-            if let failure { InlineNotice(text: failure).padding([.horizontal, .bottom], 16) }
+            .aspectRatio(9.0 / 13.0, contentMode: .fit)
+            .background(TakeTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 22))
+            if sample { Text("Fictional sample · Synthetic sound · Not a live recording").font(.caption2).foregroundStyle(TakeTheme.muted) }
+            if showCaptions { Text(caption?.status == "ready" ? (caption?.text ?? "Captions unavailable.") : "Captions aren't available for this video.").font(.subheadline).foregroundStyle(TakeTheme.muted) }
+            if let failure { InlineNotice(text: failure) }
         }
-        .background(TakeTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 26))
         .task(id: id) { await loadThumbnail() }
         .onDisappear { if active { playback.pause() } }
         .onChange(of: playback.activeID) { _, activeID in if let activeID, activeID != id { attemptedPlayback = false } }

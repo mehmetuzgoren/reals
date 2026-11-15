@@ -21,13 +21,13 @@ struct ProfileView: View {
                         AvatarView(profile: state.profile, size: 96)
                         VStack(spacing: 5) { Text(state.profile.displayName).font(.largeTitle.bold()); Text("@\(state.profile.username)").font(.subheadline).foregroundStyle(TakeTheme.muted) }
                         Button("Edit profile") { editing = true }.font(.subheadline.bold()).padding(.horizontal, 24).frame(minHeight: 44).background(TakeTheme.raised, in: Capsule())
-                        if model.isDemo { Label("OFFLINE DEMO IDENTITY", systemImage: "sparkles").font(.caption2.bold()).tracking(1).foregroundStyle(TakeTheme.lavender) }
+                        if model.isDemo { Label("OFFLINE DEMO IDENTITY", systemImage: "sparkles").font(.caption2.bold()).tracking(1).foregroundStyle(TakeTheme.white) }
                     }.frame(maxWidth: .infinity).padding(.vertical, 12)
                     VStack(alignment: .leading, spacing: 20) {
-                        HStack { Image(systemName: "bell.badge").foregroundStyle(TakeTheme.lavender); Text("A nudge, not a noise.").font(.headline) }
+                        HStack { Image(systemName: "bell.badge").foregroundStyle(TakeTheme.white); Text("A nudge, not a noise.").font(.headline) }
                         Text("A daily question and eligible direct video replies. Never hidden opinions or previews in a notification.").font(.subheadline).foregroundStyle(TakeTheme.muted)
-                        Toggle("Daily question", isOn: preferenceBinding(daily: true)).tint(TakeTheme.lime)
-                        Toggle("Direct video replies", isOn: preferenceBinding(daily: false)).tint(TakeTheme.lime)
+                        Toggle("Daily question", isOn: preferenceBinding(daily: true)).tint(TakeTheme.white)
+                        Toggle("Direct video replies", isOn: preferenceBinding(daily: false)).tint(TakeTheme.white)
                         if !model.isDemo {
                             Text(notificationSummary).font(.caption).foregroundStyle(TakeTheme.muted)
                             if let error = notifications.errorMessage { InlineNotice(text: error) }
@@ -42,7 +42,7 @@ struct ProfileView: View {
                     ForEach(state.originals.items) { original in
                         NavigationLink { OwnHistoryView(original: original) } label: {
                             HStack(spacing: 16) {
-                                Image(systemName: "play.rectangle.fill").font(.title).foregroundStyle(TakeTheme.lavender).frame(width: 60, height: 68).background(TakeTheme.lavender.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                                Image(systemName: "play.rectangle.fill").font(.title).foregroundStyle(TakeTheme.white).frame(width: 60, height: 68).background(TakeTheme.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(historyTitle(original)).font(.headline).multilineTextAlignment(.leading)
                                     Text(Date(milliseconds: original.publishedAt), style: .date).font(.caption).foregroundStyle(TakeTheme.muted)
@@ -55,7 +55,7 @@ struct ProfileView: View {
                     VStack(spacing: 6) {
                         if model.isDemo { row("Developer-only Demo controls", symbol: "slider.horizontal.3") { showDemo = true } }
                         row("Sign out", symbol: "rectangle.portrait.and.arrow.right") { showSignOut = true }
-                        row(deleting ? "Deleting account…" : "Delete account", symbol: "trash", color: TakeTheme.coral) { showDeletion = true }
+                        row(deleting ? "Deleting account…" : "Delete account", symbol: "trash", color: TakeTheme.white) { showDeletion = true }
                     }.padding(8).background(TakeTheme.surface, in: RoundedRectangle(cornerRadius: 24))
                     Text("TAKE · A little perspective goes a long way.").font(.caption).foregroundStyle(TakeTheme.muted).frame(maxWidth: .infinity).padding(.bottom, 20)
                 } else { ProgressView().frame(maxWidth: .infinity).padding(40) }
@@ -157,7 +157,7 @@ struct OwnHistoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                Eyebrow(text: "YOUR PERSPECTIVE", color: TakeTheme.lavender)
+                Eyebrow(text: "YOUR PERSPECTIVE", color: TakeTheme.white)
                 if let value = authorized { ContentVideoCard(id: value.id, author: value.author, kind: .original, durationMs: value.durationMs) }
                 else if let failure { InlineNotice(text: failure) }
                 else { ProgressView() }

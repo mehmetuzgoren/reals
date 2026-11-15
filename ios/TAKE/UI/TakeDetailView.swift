@@ -21,11 +21,11 @@ struct TakeDetailView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
-                Text(round.question).font(.title2.bold()).padding(.top, 8)
+                Text(round.question).font(.caption).foregroundStyle(TakeTheme.muted).padding(.top, 8)
                 if let original {
                     ContentVideoCard(id: original.id, author: original.author, kind: .original, durationMs: original.durationMs, option: round.label(for: original.optionId))
                     controls(id: original.id, author: original.author, kind: .original)
-                    HStack { Eyebrow(text: "THE CONVERSATION"); Spacer(); Text("\(original.visibleReplyCount) visible").font(.caption).foregroundStyle(TakeTheme.muted) }
+                    HStack { Text("Video replies").font(.headline); Spacer(); Text("\(original.visibleReplyCount) visible").font(.caption).foregroundStyle(TakeTheme.muted) }
                     Text("Replies are shared only where friendships overlap.").font(.caption).foregroundStyle(TakeTheme.muted)
                     if replies.isEmpty { EmptyCard(symbol: "bubble.left.and.bubble.right", title: "Room for your perspective.", message: "No replies are visible to you yet. Keep it human. Keep it kind.") }
                     ForEach(replies) { reply in
@@ -37,13 +37,20 @@ struct TakeDetailView: View {
                     if cursor != nil { Button("Load more replies") { Task { await load(more: true) } }.frame(minHeight: 44) }
                 } else if let failure { EmptyCard(symbol: "lock", title: "This conversation is unavailable.", message: failure) }
                 else { ProgressView("Opening conversation…").frame(maxWidth: .infinity).padding(50) }
-                if reported { InlineNotice(text: "Report received. Thanks for helping keep TAKE safe.", color: TakeTheme.lavender) }
-            }.padding(24).padding(.bottom, 70)
+                if reported { InlineNotice(text: "Report received. Thanks for helping keep TAKE safe.") }
+            }.padding(.horizontal, 22).padding(.vertical, 12).padding(.bottom, 24)
         }
-        .takeScreen().navigationTitle("The other side").navigationBarTitleDisplayMode(.inline)
+        .takeScreen().navigationTitle(original?.author.displayName ?? "Take & replies").navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             if let original, original.roundId == model.today?.round?.id, original.author.id != model.viewer?.id, model.today?.canViewFriends == true {
-                PrimaryButton(title: "Reply with video", symbol: "video.badge.plus") { makeReply(original) }.padding(.horizontal, 24).padding(.vertical, 12).background(TakeTheme.background)
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your side of the conversation.").font(.subheadline.weight(.medium))
+                        Text("Reply with a video, up to 15 seconds.").font(.caption).foregroundStyle(TakeTheme.muted)
+                    }
+                    Spacer(minLength: 0)
+                    Button { makeReply(original) } label: { Image(systemName: "video").font(.title3.weight(.semibold)).frame(width: 54, height: 54).foregroundStyle(TakeTheme.background).background(TakeTheme.white, in: Circle()) }.accessibilityLabel("Reply with video").accessibilityIdentifier("Reply with video")
+                }.padding(.horizontal, 22).padding(.vertical, 12).background(TakeTheme.background)
             }
         }
         .task {

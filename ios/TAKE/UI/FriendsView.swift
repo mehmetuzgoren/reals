@@ -13,14 +13,13 @@ struct FriendsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Eyebrow(text: "YOUR PEOPLE", color: TakeTheme.lavender)
-                    Text("Good friends.\nDifferent takes.").font(.system(.largeTitle, design: .rounded, weight: .bold)).tracking(-0.7)
+                    Text("Your circle.").font(.title2.bold()).tracking(-0.5)
                     Text("Find friends by username. No contacts upload, no public discovery.").font(.subheadline).foregroundStyle(TakeTheme.muted)
                 }
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(TakeTheme.muted)
                     TextField("Search a username", text: $search).textInputAutocapitalization(.never).autocorrectionDisabled().submitLabel(.search).accessibilityIdentifier("Search a username")
-                    if searching { ProgressView().tint(TakeTheme.lime) }
+                    if searching { ProgressView().tint(TakeTheme.white) }
                     if !search.isEmpty { Button { search = ""; results = [] } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(TakeTheme.muted).frame(width: 44, height: 44) }.accessibilityLabel("Clear search") }
                 }.padding(.leading, 16).padding(.vertical, 6).background(TakeTheme.surface, in: RoundedRectangle(cornerRadius: 18))
                 if !search.isEmpty {
@@ -57,7 +56,7 @@ struct FriendsView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 person(request.profile)
                                 Text("Pending requests don't share takes.").font(.caption).foregroundStyle(TakeTheme.muted)
-                                Button("Cancel request") { action { try await $0.cancelRequest(requestId: request.id) } }.font(.subheadline.bold()).foregroundStyle(TakeTheme.lavender).frame(minHeight: 44).disabled(working)
+                                Button("Cancel request") { action { try await $0.cancelRequest(requestId: request.id) } }.font(.subheadline.bold()).foregroundStyle(TakeTheme.white).frame(minHeight: 44).disabled(working)
                             }.takeCard()
                         }
                     }
@@ -87,7 +86,7 @@ struct FriendsView: View {
         VStack(alignment: .leading, spacing: 12) {
             person(result.profile)
             switch result.relationship {
-            case "approved": Label("Already friends", systemImage: "checkmark.circle.fill").foregroundStyle(TakeTheme.lime).font(.subheadline)
+            case "approved": Label("Already friends", systemImage: "checkmark.circle.fill").foregroundStyle(TakeTheme.white).font(.subheadline)
             case "incoming":
                 if let id = result.requestId { Button("Accept request") { action { try await $0.respond(requestId: id, accept: true) } }.frame(minHeight: 44).disabled(working) }
             case "outgoing":
