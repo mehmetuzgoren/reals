@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { ProbeFailure, validateMediaDenial } from './take-probe.mjs';
+import { ProbeFailure, validateMediaDenial, validateConvexErrorMessage } from './take-probe.mjs';
 
 function check(condition) {
   if (!condition) throw new ProbeFailure();
@@ -54,27 +54,15 @@ export async function runDeploymentProbe(manifest, fetcher = fetch, report = () 
     check(data.errorData.message === (expectedCode === 'UNAUTHENTICATED'
       ? 'Sign in with Apple to continue' : 'Apple sign-in is not configured'));
     check(data.errorData.retryable === false);
-    if (data.errorMessage !== undefined) {
-      const json = JSON.stringify(data.errorData);
-      if ([data.errorData.message, json, `Uncaught ConvexError: ${json}`].includes(data.errorMessage)) return;
-      check(typeof data.errorMessage === 'string');
-      const lines = data.errorMessage.trimEnd().split('\n');
-      check(/^\[Request ID: [a-f0-9]{16}\] Server Error$/.test(lines[0]));
-      check(lines[1] === `Uncaught ConvexError: ${json}`);
-      const frames = expectedCode === 'PROCESSING_UNAVAILABLE'
-        ? [['fail', '../../convex/lib/errors.ts'], ['requireApple', '../convex/auth.ts'], ['handler', '../convex/auth.ts']]
-        : [
-          ['fail', '../../convex/lib/errors.ts'], ['identity', '../../convex/lib/auth.ts'],
-          ['authenticatedUser', '../../convex/lib/auth.ts'], ['optionalViewer', '../../convex/lib/auth.ts'],
-          ...(path === 'viewer:session' ? [] : [['viewer', '../../convex/lib/auth.ts']]),
-          ['handler', `../convex/${path.split(':')[0]}.ts`],
-        ];
-      check(lines.length === frames.length + 2);
-      for (const [index, [name, source]] of frames.entries()) {
-        const frame = /^ {4}at (?:async )?([A-Za-z]+) \(([^:]+):\d+:\d+\)$/.exec(lines[index + 2]);
-        check(frame && frame[1] === name && frame[2] === source);
-      }
-    }
+    const frames = expectedCode === 'PROCESSING_UNAVAILABLE'
+      ? [['fail', '../../convex/lib/errors.ts'], ['requireApple', '../convex/auth.ts'], ['handler', '../convex/auth.ts']]
+      : [
+        ['fail', '../../convex/lib/errors.ts'], ['identity', '../../convex/lib/auth.ts'],
+        ['authenticatedUser', '../../convex/lib/auth.ts'], ['optionalViewer', '../../convex/lib/auth.ts'],
+        ...(path === 'viewer:session' ? [] : [['viewer', '../../convex/lib/auth.ts']]),
+        ['handler', `../convex/${path.split(':')[0]}.ts`],
+      ];
+    validateConvexErrorMessage(data.errorMessage, data.errorData, [frames]);
   };
   await step('auth.unauthenticated-session', () => api('query', 'auth:isAuthenticated', {}));
   for (const path of ['viewer:session', 'rounds:today']) {

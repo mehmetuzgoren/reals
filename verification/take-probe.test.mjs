@@ -230,3 +230,22 @@ test('nested content/profile leaks and omitted required nulls are rejected', asy
     await assert.rejects(() => probe.value('query', 'takes:detail', {}, 'dana'), ProbeFailure);
   }
 });
+
+test('live NOT_FOUND wrappers pass only their exact reviewed public frames', async () => {
+  for (const [kind, path, module] of [
+    ['query', 'takes:detail', 'takes'], ['query', 'replies:list', 'replies'],
+    ['query', 'captions:get', 'captions'], ['action', 'media:createPlaybackGrant', 'media'],
+  ]) {
+    const failure = { code: 'NOT_FOUND', message: 'Not found', retryable: false };
+    const message = `[Request ID: ${'a'.repeat(16)}] Server Error\nUncaught ConvexError: ${JSON.stringify(failure)}\n`
+      + '    at fail (../../convex/lib/errors.ts:1:1)\n    at notFound (../../convex/lib/errors.ts:1:1)\n'
+      + '    at async authorizedContent (../../convex/lib/access.ts:1:1)\n'
+      + `    at async handler (../convex/${module}.ts:1:1)\n`
+      + (kind === 'action' ? '\n    at async handler (../convex/media.ts:1:1)\n' : '');
+    for (const wrapper of [message, message + 'Private callback data', message.replace('access.ts', 'private.ts'), message.replace('Request ID:', 'Private ID:')]) {
+      const probe = new ConvexProbe(manifest, tokens, async () => Response.json({ status: 'error', errorData: failure, errorMessage: wrapper }));
+      if (wrapper === message) await probe.denied(kind, path, {}, 'locked');
+      else await assert.rejects(() => probe.denied(kind, path, {}, 'locked'), ProbeFailure);
+    }
+  }
+});

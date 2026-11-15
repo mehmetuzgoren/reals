@@ -84,6 +84,22 @@ export function validateMediaDenial(body) {
   }
 }
 
+export function validateConvexErrorMessage(message, failure, stacks) {
+  const json = JSON.stringify(failure);
+  if (message === undefined || [failure.message, json, `Uncaught ConvexError: ${json}`].includes(message)) return;
+  check(typeof message === 'string');
+  const lines = message.trimEnd().split('\n');
+  check(/^\[Request ID: [a-f0-9]{16}\] Server Error$/.test(lines[0]));
+  check(lines[1] === `Uncaught ConvexError: ${json}`);
+  const frames = lines.slice(2).map(line => {
+    if (line === '') return null;
+    const frame = /^ {4}at (?:async )?([A-Za-z]+) \(([^:]+):\d+:\d+\)$/.exec(line);
+    check(frame);
+    return [frame[1], frame[2]];
+  });
+  check(stacks.some(stack => JSON.stringify(stack) === JSON.stringify(frames)));
+}
+
 export function validateManifest(value) {
   check(value && typeof value === 'object' && !Array.isArray(value));
   const required = ['convexUrl', 'siteUrl', 'roundId', 'originalId', 'replyId'];
@@ -126,9 +142,15 @@ export class ConvexProbe {
       keys(data.errorData, ['code', 'message', 'retryable']);
       check(typeof data.errorData.code === 'string' && typeof data.errorData.retryable === 'boolean');
       check(['Not found', 'Content unavailable', 'Unavailable'].includes(data.errorData.message));
-      check(data.errorMessage === undefined || [
-        data.errorData.message, JSON.stringify(data.errorData), `Uncaught ConvexError: ${JSON.stringify(data.errorData)}`,
-      ].includes(data.errorMessage));
+      const base = [['fail', '../../convex/lib/errors.ts'], ['notFound', '../../convex/lib/errors.ts']];
+      const handler = ['handler', `../convex/${path.split(':')[0]}.ts`];
+      const content = [...base, ['authorizedContent', '../../convex/lib/access.ts'], handler];
+      const stacks = path === 'media:createPlaybackGrant'
+        ? [[...content, null, handler], [...base, handler, null, handler]]
+        : path === 'takes:detail' || path === 'captions:get' ? [content]
+          : path === 'replies:list' ? [content, [...base, handler]]
+            : path === 'takes:feed' ? [[...base, handler]] : [];
+      validateConvexErrorMessage(data.errorMessage, data.errorData, stacks);
       return { ok: false, code: data.errorData.code };
     }
     throw new ProbeFailure();
