@@ -271,14 +271,16 @@ final class DemoService: TakeService, DemoControlling {
         if accept { state.friendships.append(Self.pair(request.sender, request.recipient)) }
         state.requests.removeAll { $0.id == requestId }; changed()
     }
-    func removeFriend(userId: String) async throws { state.friendships.removeAll { $0 == Self.pair(mine.id, userId) }; changed() }
+    func removeFriend(userId: String) async throws { let edge = Self.pair(mine.id, userId); state.friendships.removeAll { $0 == edge }; changed() }
     func block(userId: String, blocked: Bool) async throws {
-        let key = mine.id + ":" + userId
+        let owner = mine.id
+        let edge = Self.pair(owner, userId)
+        let key = owner + ":" + userId
         state.blocks.removeAll { $0 == key }
         if blocked {
             state.blocks.append(key)
-            state.friendships.removeAll { $0 == Self.pair(mine.id, userId) }
-            state.requests.removeAll { Self.pair($0.sender, $0.recipient) == Self.pair(mine.id, userId) }
+            state.friendships.removeAll { $0 == edge }
+            state.requests.removeAll { Self.pair($0.sender, $0.recipient) == edge }
         }
         changed()
     }
@@ -321,10 +323,10 @@ final class DemoService: TakeService, DemoControlling {
         let owner = mine.id
         for original in state.originals.filter({ $0.summary.author.id == mine.id }) { try await deleteContent(id: original.summary.id, kind: .original) }
         for reply in state.replies.filter({ $0.summary.author.id == mine.id }) { try await deleteContent(id: reply.summary.id, kind: .reply) }
-        state.friendships.removeAll { $0.split(separator: ":").contains(Substring(mine.id)) }
-        state.requests.removeAll { $0.sender == mine.id || $0.recipient == mine.id }
-        state.receipts.removeAll { $0.userId == mine.id }
-        state.preferences.removeValue(forKey: mine.id)
+        state.friendships.removeAll { $0.split(separator: ":").contains(Substring(owner)) }
+        state.requests.removeAll { $0.sender == owner || $0.recipient == owner }
+        state.receipts.removeAll { $0.userId == owner }
+        state.preferences.removeValue(forKey: owner)
         if let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) { for file in files where file.lastPathComponent.hasPrefix("avatar-\(owner)") { try? FileManager.default.removeItem(at: file) } }
         state.uploads = state.uploads.filter { $0.value.owner != owner }
         state.blocks.removeAll { $0.split(separator: ":").contains(Substring(owner)) }

@@ -25,8 +25,10 @@ final class AppModel: ObservableObject {
     var demo: (any DemoControlling)? { service as? any DemoControlling }
 
     func enterDemo() async {
-        if let service, !service.isDemo { try? await service.signOut() }
+        let previousService = service
         invalidate()
+        viewer = nil; needsOnboarding = false
+        if let previousService, !previousService.isDemo { try? await previousService.signOut() }
         let demo = DemoService(reset: ProcessInfo.processInfo.arguments.contains("--reset-demo"))
         service = demo
         UserDefaults.standard.set("demo", forKey: "TAKE.lastMode")
@@ -48,30 +50,36 @@ final class AppModel: ObservableObject {
 
     func establishSession() async {
         guard let service else { return }
+        let epoch = generation
         busy = true
         do {
             let session = try await service.session()
+            guard epoch == generation, self.service === service else { return }
             viewer = session.profile
             needsOnboarding = session.needsOnboarding
             if !service.isDemo { UserDefaults.standard.set("live", forKey: "TAKE.lastMode") }
             if !needsOnboarding {
                 if !service.isDemo { NotificationCoordinator.shared.configure(service: service) }
                 await refresh()
+                guard epoch == generation, self.service === service else { return }
                 watch()
             }
-        } catch { self.error = error.localizedDescription }
-        busy = false
+        } catch { if epoch == generation { self.error = error.localizedDescription } }
+        if epoch == generation { busy = false }
     }
 
     func completeProfile(username: String, name: String) async {
         guard let service else { return }
+        let epoch = generation
         busy = true
         do {
-            viewer = try await service.completeOnboarding(username: username, displayName: name)
+            let profile = try await service.completeOnboarding(username: username, displayName: name)
+            guard epoch == generation, self.service === service else { return }
+            viewer = profile
             needsOnboarding = false
             await establishSession()
-        } catch { self.error = error.localizedDescription }
-        busy = false
+        } catch { if epoch == generation { self.error = error.localizedDescription } }
+        if epoch == generation { busy = false }
     }
 
     func watch() {
