@@ -1,0 +1,5 @@
+build
+DerivedData
+*.local.xcconfig
+Config/GoogleService-Info.plist
+*.xcresult
