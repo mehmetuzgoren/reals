@@ -13,6 +13,7 @@ final class PlaybackCoordinator: ObservableObject {
     private var requestID = UUID()
     private var download: PrivatePlaybackDownload?
     private var privateFile: URL?
+    private var expiryTask: Task<Void, Never>?
     private var itemObservation: NSKeyValueObservation?
     private var itemObservers: [NSObjectProtocol] = []
     private var lifecycleObservers: [NSObjectProtocol] = []
@@ -47,6 +48,7 @@ final class PlaybackCoordinator: ObservableObject {
 
     deinit {
         download?.cancel()
+        expiryTask?.cancel()
         lifecycleObservers.forEach(NotificationCenter.default.removeObserver)
         itemObservers.forEach(NotificationCenter.default.removeObserver)
         let file = privateFile
@@ -57,11 +59,25 @@ final class PlaybackCoordinator: ObservableObject {
         }
     }
 
-    func play(id: String, url: URL) {
+    func play(id: String, url: URL, expiresAt: Date? = nil) {
         clear()
         guard UIApplication.shared.applicationState == .active else { return }
+        guard expiresAt.map({ $0 > Date() }) ?? url.isFileURL else {
+            fail("Secure playback expired. Tap play to request fresh access.")
+            return
+        }
         let token = requestID
         activeID = id
+        if let expiresAt {
+            expiryTask = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(max(0, expiresAt.timeIntervalSinceNow))) }
+                catch { return }
+                guard let self, self.requestID == token else { return }
+                let wasActive = self.activeID == id
+                self.clear()
+                if wasActive { self.errorMessage = "Secure playback expired. Tap play to request fresh access." }
+            }
+        }
         if url.isFileURL {
             installPlayer(url: url, id: id, token: token)
             return
@@ -110,6 +126,7 @@ final class PlaybackCoordinator: ObservableObject {
 
     func clear() {
         pause()
+        expiryTask?.cancel(); expiryTask = nil
         requestID = UUID()
         itemObservation?.invalidate()
         itemObservation = nil

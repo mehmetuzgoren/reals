@@ -135,7 +135,11 @@ final class AppModel: ObservableObject {
             guard isCurrentAccess(generation: epoch, revision: revision), today?.round?.id == round.id, today?.canViewFriends == true else { return }
             feed = more ? feed + page.items.filter { item in !feed.contains(where: { $0.id == item.id }) } : page.items
             feedCursor = page.nextCursor
-        } catch { if isCurrentAccess(generation: epoch, revision: revision) { self.error = error.localizedDescription } }
+        } catch {
+            guard isCurrentAccess(generation: epoch, revision: revision) else { return }
+            if more, (error as? ServiceFailure)?.code == "NOT_FOUND" { await relationshipChanged() }
+            else { self.error = error.localizedDescription }
+        }
     }
 
     @discardableResult

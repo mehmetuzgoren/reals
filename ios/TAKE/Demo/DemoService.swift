@@ -43,6 +43,7 @@ final class DemoService: TakeService, DemoControlling {
 
     let isDemo = true
     var viewerID: String? { state.identity.rawValue }
+    var serverNow: Double { Date().milliseconds }
     var identity: DemoIdentity { state.identity }
     private var state: State
     private let directory: URL

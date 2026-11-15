@@ -5,6 +5,7 @@ import Foundation
 protocol TakeService: AnyObject {
     var isDemo: Bool { get }
     var viewerID: String? { get }
+    var serverNow: Double { get }
     func session() async throws -> ViewerSession
     func completeOnboarding(username: String, displayName: String) async throws -> PublicProfile
     func today() async throws -> TodayState

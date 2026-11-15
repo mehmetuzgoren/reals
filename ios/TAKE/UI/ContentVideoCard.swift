@@ -67,7 +67,8 @@ struct ContentVideoCard: View {
         do {
             let grant = try await service.playback(contentId: id, kind: kind, asset: "video")
             guard model.isCurrentAccess(generation: epoch, revision: revision), let url = URL(string: grant.url) else { throw ServiceFailure.notFound }
-            playback.play(id: id, url: url)
+            let expiresAt = service.isDemo ? nil : Date().addingTimeInterval((grant.expiresAt - service.serverNow) / 1_000)
+            playback.play(id: id, url: url, expiresAt: expiresAt)
         } catch { failure = "Video unavailable. \(error.localizedDescription) Tap play to try again." }
         loading = false
     }

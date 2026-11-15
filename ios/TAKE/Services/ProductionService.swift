@@ -136,7 +136,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         let epoch = sessionEpoch
         conversationTasks[id] = [
             conversationWatch("takes:detail", ["originalId": originalId], yielding: OriginalSummary.self, id: id, epoch: epoch, changed: changed),
-            conversationWatch("replies:list", ["originalId": originalId, "cursor": nil, "limit": 20.0], yielding: Page<ReplySummary>.self, id: id, epoch: epoch, changed: changed)
+            conversationWatch("replies:list", ["originalId": originalId, "cursor": nil, "limit": 50.0], yielding: Page<ReplySummary>.self, id: id, epoch: epoch, changed: changed)
         ]
         return { [weak self] in
             let tasks = self?.conversationTasks.removeValue(forKey: id)
@@ -145,7 +145,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
     }
 
     func feed(roundId: String, cursor: String?) async throws -> Page<OriginalSummary> {
-        try await query("takes:feed", ["roundId": roundId, "cursor": cursor, "limit": 20.0])
+        try await query("takes:feed", ["roundId": roundId, "cursor": cursor, "limit": 8.0])
     }
 
     func detail(originalId: String) async throws -> OriginalSummary {
@@ -153,7 +153,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
     }
 
     func replies(originalId: String, cursor: String?) async throws -> Page<ReplySummary> {
-        try await query("replies:list", ["originalId": originalId, "cursor": cursor, "limit": 20.0])
+        try await query("replies:list", ["originalId": originalId, "cursor": cursor, "limit": 50.0])
     }
 
     func beginUpload(draft: PublicationDraft) async throws -> UploadIntent {
@@ -163,7 +163,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
             throw Self.invalidMedia
         }
         let epoch = sessionEpoch
-        try await validateClip(clip, maxBytes: 20 * 1_024 * 1_024, maxDuration: 15_000)
+        try await validateClip(clip, maxBytes: 8 * 1_024 * 1_024, maxDuration: 15_000)
         guard epoch == sessionEpoch else { throw CancellationError() }
         let intent: UploadIntent = try await mutation("uploads:begin", [
             "requestId": draft.id, "kind": draft.kind.rawValue, "roundId": draft.roundId,
@@ -187,7 +187,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
             throw ServiceFailure(code: "INVALID_UPLOAD", message: "Check this upload's status or start it again.", retryable: true)
         }
         let epoch = sessionEpoch
-        let maxBytes = min(intent.maxBytes, 20 * 1_024 * 1_024)
+        let maxBytes = min(intent.maxBytes, 8 * 1_024 * 1_024)
         try await validateClip(clip, maxBytes: maxBytes, maxDuration: intent.maxDurationMs)
         let destination = try configuration.uploadURL(intent.uploadUrl, uploadId: intent.uploadId, asset: "video")
         let token = try await authentication.freshIDToken()
@@ -229,7 +229,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         request.setValue(String(try snapshot.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0), forHTTPHeaderField: "Content-Length")
         do {
             progress(0)
-            try await transfer.run(request: request, file: snapshot)
+            try await transfer.run(request: request, file: snapshot, expectedUploadID: intent.uploadId)
             guard epoch == sessionEpoch else { throw CancellationError() }
             uploadProgress[intent.uploadId] = 1
             progress(1)
@@ -315,7 +315,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
     }
 
     func profile(cursor: String?) async throws -> ProfileState {
-        try await query("profiles:mine", ["cursor": cursor, "limit": 20.0])
+        try await query("profiles:mine", ["cursor": cursor, "limit": 10.0])
     }
 
     func updateProfile(displayName: String, avatar: Data?) async throws -> PublicProfile {
@@ -427,7 +427,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         await client.logout()
     }
 
-    private var serverNow: Double { Date().milliseconds + serverClockOffset }
+    var serverNow: Double { Date().milliseconds + serverClockOffset }
 
     private func synchronizeClock(_ state: TodayState) {
         if state.serverNow.isFinite { serverClockOffset = state.serverNow - Date().milliseconds }
@@ -588,7 +588,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
     }
 
     nonisolated private static var invalidMedia: ServiceFailure {
-        ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require an in-app MP4 recording with audio, up to 15 seconds and 20 MB. Demo clips can't be uploaded.", retryable: false)
+        ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require an in-app MP4 recording with audio, up to 15 seconds and 8 MiB. Demo clips can't be uploaded.", retryable: false)
     }
 
     private static var invalidResponse: ServiceFailure {
@@ -673,7 +673,7 @@ private final class PrivateUploadTransfer: NSObject, URLSessionDataDelegate, @un
         self.progress = progress
     }
 
-    func run(request: URLRequest, file: URL, expectedUploadID: String? = nil) async throws {
+    func run(request: URLRequest, file: URL, expectedUploadID: String) async throws {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 lock.lock()
@@ -758,7 +758,7 @@ private final class PrivateUploadTransfer: NSObject, URLSessionDataDelegate, @un
         } else if let response, (200..<300).contains(response.statusCode) {
             if let expectedUploadID,
                (try? JSONDecoder().decode(UploadAcknowledgment.self, from: body).uploadId) != expectedUploadID {
-                continuation.resume(throwing: ServiceFailure(code: "INVALID_RESPONSE", message: "The profile photo upload couldn't be verified. Please try again.", retryable: true))
+                continuation.resume(throwing: ServiceFailure(code: "INVALID_RESPONSE", message: "The upload couldn't be verified. Please try again.", retryable: true))
             } else {
                 continuation.resume()
             }
@@ -777,7 +777,7 @@ private final class PrivateUploadTransfer: NSObject, URLSessionDataDelegate, @un
             case 409:
                 failure = ServiceFailure(code: "CONFLICT", message: "This upload changed. Check its publication status before retrying.", retryable: true)
             case 413, 415, 422:
-                failure = ServiceFailure(code: "INVALID_MEDIA", message: "This recording couldn't be accepted. Retake a video up to 15 seconds and 20 MB.", retryable: false)
+                failure = ServiceFailure(code: "INVALID_MEDIA", message: "This recording couldn't be accepted. Retake a video up to 15 seconds and 8 MiB.", retryable: false)
             default:
                 failure = ServiceFailure(code: "UPLOAD_FAILED", message: "Couldn't upload this recording. Please try again.", retryable: status == 0 || status == 408 || status == 429 || status >= 500)
             }

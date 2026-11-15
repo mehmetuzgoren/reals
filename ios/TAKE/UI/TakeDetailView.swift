@@ -88,7 +88,12 @@ struct TakeDetailView: View {
             let page = try await service.replies(originalId: originalID, cursor: more ? cursor : nil)
             guard epoch == loadEpoch, model.isCurrentAccess(generation: session, revision: revision) else { return }
             original = value; replies = more ? replies + page.items : page.items; cursor = page.nextCursor; failure = nil
-        } catch { guard epoch == loadEpoch, model.isCurrentAccess(generation: session, revision: revision) else { return }; original = nil; replies = []; PlaybackCoordinator.shared.clear(); failure = error.localizedDescription }
+        } catch {
+            guard epoch == loadEpoch, model.isCurrentAccess(generation: session, revision: revision) else { return }
+            original = nil; replies = []; cursor = nil; PlaybackCoordinator.shared.clear()
+            if more, (error as? ServiceFailure)?.code == "NOT_FOUND" { await load() }
+            else { failure = error.localizedDescription }
+        }
     }
     private func makeReply(_ original: OriginalSummary) {
         guard let owner = model.service?.viewerID else { return }

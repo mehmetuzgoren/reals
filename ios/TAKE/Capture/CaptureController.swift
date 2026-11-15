@@ -432,7 +432,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 exporter.outputURL = url
                 exporter.outputFileType = .mp4
                 exporter.shouldOptimizeForNetworkUse = true
-                exporter.fileLengthLimit = 20 * 1_024 * 1_024
+                exporter.fileLengthLimit = 8 * 1_024 * 1_024
                 exporter.timeRange = CMTimeRange(start: .zero, duration: CMTimeMinimum(duration, CMTime(seconds: 14.9, preferredTimescale: 600)))
                 try await withTaskCancellationHandler {
                     try Task.checkCancellation()
@@ -460,7 +460,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let audioFormats = try await audioTrack.load(.formatDescriptions)
                 let bytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                 guard finalDuration.isFinite, finalDuration > 0, finalDuration <= 15,
-                      finalDuration + 0.15 >= min(duration.seconds, 14.9), bytes > 0, bytes <= 20 * 1_024 * 1_024,
+                      finalDuration + 0.15 >= min(duration.seconds, 14.9), bytes > 0, bytes <= 8 * 1_024 * 1_024,
                       videoFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 }),
                       audioFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kAudioFormatMPEG4AAC }) else {
                     throw CaptureFailure("Your take couldn't be saved in the required 15-second format. Please try again.")

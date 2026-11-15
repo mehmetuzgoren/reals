@@ -294,4 +294,19 @@ final class DemoServiceTests: XCTestCase {
         checkEqual(try await FirebaseAuthentication.retrieveToken({ "current-binding-token" }, isCurrent: { true }, onFailure: failure), "current-binding-token")
         checkEqual(failureCalls, 1)
     }
+
+    func testPlaybackExpiryClearsPausedPlayerAndRequiresFreshAccess() async throws {
+        let playback = PlaybackCoordinator.shared
+        defer { playback.clear() }
+        playback.play(id: "expiry-test", url: try XCTUnwrap(DemoService.fixtureURL()), expiresAt: Date().addingTimeInterval(0.1))
+        XCTAssertNotNil(playback.player)
+        playback.player?.pause()
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertNil(playback.player)
+        XCTAssertNil(playback.activeID)
+        checkTrue(playback.errorMessage?.contains("fresh access") == true)
+        playback.play(id: "expired-grant", url: URL(string: "https://media.invalid/v1/media/expired?token=invalid")!, expiresAt: Date().addingTimeInterval(-1))
+        XCTAssertNil(playback.player)
+        XCTAssertNil(playback.activeID)
+    }
 }

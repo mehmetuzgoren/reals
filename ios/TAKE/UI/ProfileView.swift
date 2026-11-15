@@ -101,7 +101,9 @@ struct ProfileView: View {
     private func deleteAccount() async {
         deleting = true
         do { try await model.service?.requestDeletion(); await model.signOut() }
-        catch { model.error = error.localizedDescription }
+        catch {
+            model.error = (error as? ServiceFailure)?.code == "REAUTH_REQUIRED" ? "For your security, sign out and sign in with Apple again, then return here to delete your account within five minutes." : error.localizedDescription
+        }
         deleting = false
     }
 }
