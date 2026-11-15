@@ -28,6 +28,7 @@ struct RootView: View {
             if model.viewer != nil, !model.isDemo { Task { await model.relationshipChanged() } }
         }
         .onReceive(NotificationCenter.default.publisher(for: .takeSessionEnded)) { _ in if !model.isDemo, model.viewer != nil || model.needsOnboarding { model.sessionEnded() } }
+        .onReceive(NotificationCenter.default.publisher(for: .takeAuthenticationPaused)) { _ in if !model.isDemo, model.viewer != nil { model.authenticationPaused() } }
     }
 }
 

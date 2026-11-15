@@ -16,6 +16,7 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
     typealias T = FirebaseSession
 
     var onSessionInvalidated: (() -> Void)?
+    var onTokenRefreshUnavailable: (() -> Void)?
     var currentUID: String? { auth.currentUser?.uid }
 
     private let auth: Auth
@@ -94,17 +95,17 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
         guard let user = auth.currentUser, user.uid == boundUID else {
             throw Self.unauthenticated
         }
+        let revision = tokenRevision
         do {
             let token = try await user.getIDToken(forcingRefresh: true)
-            guard auth.currentUser?.uid == user.uid, boundUID == user.uid else {
+            guard revision == tokenRevision, auth.currentUser?.uid == user.uid, boundUID == user.uid else {
                 throw Self.unauthenticated
             }
             onIdToken?(token)
             return token
         } catch {
-            onIdToken?(nil)
-            onSessionInvalidated?()
-            throw Self.failure(error)
+            guard revision == tokenRevision, auth.currentUser?.uid == user.uid, boundUID == user.uid else { throw CancellationError() }
+            throw handleTokenFailure(error)
         }
     }
 
@@ -165,10 +166,22 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
             guard revision == tokenRevision, auth.currentUser?.uid == boundUID else { return }
             onIdToken?(token)
         } catch {
-            guard revision == tokenRevision else { return }
-            onIdToken?(nil)
-            onSessionInvalidated?()
+            guard revision == tokenRevision, auth.currentUser?.uid == boundUID else { return }
+            _ = handleTokenFailure(error)
         }
+    }
+
+    nonisolated static func isTransientTokenError(_ error: Error) -> Bool {
+        if error is URLError || error is CancellationError { return true }
+        let value = error as NSError
+        return value.domain == AuthErrorDomain && value.code == AuthErrorCode.networkError.rawValue
+    }
+
+    private func handleTokenFailure(_ error: Error) -> ServiceFailure {
+        onIdToken?(nil)
+        if Self.isTransientTokenError(error) { onTokenRefreshUnavailable?() }
+        else { onSessionInvalidated?() }
+        return Self.failure(error)
     }
 
     private func endSession() throws {
@@ -188,7 +201,7 @@ final class FirebaseAuthentication: ConvexMobile.AuthProvider, AppleAuthenticati
     private static func failure(_ error: Error) -> ServiceFailure {
         if let failure = error as? ServiceFailure { return failure }
         let code = (error as NSError).code
-        if code == AuthErrorCode.networkError.rawValue {
+        if isTransientTokenError(error) {
             return ServiceFailure(code: "AUTH_NETWORK", message: "Couldn't reach sign-in. Check your connection and try again.", retryable: true)
         }
         if code == AuthErrorCode.requiresRecentLogin.rawValue {

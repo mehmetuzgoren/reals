@@ -1,5 +1,6 @@
 import AVFoundation
 import FirebaseCore
+import FirebaseAuth
 import XCTest
 @testable import TAKE
 
@@ -244,5 +245,29 @@ final class DemoServiceTests: XCTestCase {
         checkFalse(FileManager.default.fileExists(atPath: file.path))
         XCTAssertNil(model.recoveredDraft)
         XCTAssertNil(model.service)
+    }
+
+    func testTransientAuthenticationFailureRevokesAccessButPreservesRetryClip() async throws {
+        checkTrue(FirebaseAuthentication.isTransientTokenError(NSError(domain: AuthErrorDomain, code: AuthErrorCode.networkError.rawValue)))
+        checkTrue(FirebaseAuthentication.isTransientTokenError(URLError(.notConnectedToInternet)))
+        checkFalse(FirebaseAuthentication.isTransientTokenError(NSError(domain: AuthErrorDomain, code: AuthErrorCode.userDisabled.rawValue)))
+        let model = AppModel()
+        model.service = service
+        model.viewer = try await service.session().profile
+        model.acceptToday(try await service.today())
+        let stored = model.saveDraft(try await draft())
+        let file = try XCTUnwrap(stored.clip?.url)
+        let epoch = model.generation
+        let revision = model.accessRevision
+        model.authenticationPaused()
+        checkFalse(model.isCurrentAccess(generation: epoch, revision: revision))
+        XCTAssertNil(model.today)
+        checkEqual(model.recoveredDraft?.id, stored.id)
+        checkTrue(FileManager.default.fileExists(atPath: file.path))
+        await model.refresh()
+        XCTAssertNotNil(model.today)
+        checkEqual(model.recoveredDraft?.id, stored.id)
+        checkTrue(FileManager.default.fileExists(atPath: file.path))
+        model.clearDraft()
     }
 }

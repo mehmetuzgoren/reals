@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
     @Published var reveal = false
     @Published var selectedTab = 0
     private var refreshTask: Task<Void, Never>?
+    private var authenticationNeedsRefresh = false
 
     var isDemo: Bool { service?.isDemo == true }
     var demo: (any DemoControlling)? { service as? any DemoControlling }
@@ -114,7 +115,9 @@ final class AppModel: ObservableObject {
             guard isCurrentAccess(generation: epoch, revision: revision) else { return }
             self.friends = friends; self.profile = profile; viewer = profile.profile
             if state.canViewFriends { await refreshFeed() }
+            guard isCurrentAccess(generation: epoch, revision: revision) else { return }
             recoverDraft()
+            if authenticationNeedsRefresh { authenticationNeedsRefresh = false; watch() }
         } catch {
             guard isCurrentAccess(generation: epoch, revision: revision) else { return }
             today = nil; feed = []; PlaybackCoordinator.shared.clear()
@@ -187,6 +190,7 @@ final class AppModel: ObservableObject {
     }
 
     func invalidate(keepSession: Bool = false) {
+        authenticationNeedsRefresh = false
         generation = UUID()
         accessRevision = UUID()
         refreshTask?.cancel(); refreshTask = nil
@@ -239,6 +243,14 @@ final class AppModel: ObservableObject {
         invalidate()
         viewer = nil; service = nil; needsOnboarding = false
         UserDefaults.standard.removeObject(forKey: "TAKE.lastMode")
+    }
+
+    func authenticationPaused() {
+        authenticationNeedsRefresh = true
+        refreshTask?.cancel(); refreshTask = nil
+        clearPrivateContent()
+        today = nil
+        error = "Couldn't refresh sign-in. Reconnect and refresh Today to retry. Any saved recording stays on this device."
     }
 
     func resetDemo() async {

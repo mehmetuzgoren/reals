@@ -27,6 +27,8 @@ Install `@UIApplicationDelegateAdaptor(TakeAppDelegate.self)` in the SwiftUI app
 
 Observe `.takePrivateAccessInvalidated` to clear players, private thumbnails, captions, and UI caches. It fires on session resets, remove/block/respond changes, and content deletion. `.takeSessionEnded` additionally signals a cleared service session. The production service itself retains no media grants, private image caches, or private response disk cache. UI relationship and round observers must also clear already-delivered media; bytes already played cannot be revoked by a client or server.
 
+Transient Firebase token-refresh transport errors push nil to Convex, invalidate in-flight requests and retained subscriptions, and post `.takeAuthenticationPaused`. The UI clears private content but retains the current owner's saved retry recording. A successful explicit or foreground refresh reauthenticates and restarts subscriptions. Confirmed identity changes, permanent authentication failures, and explicit sign-out instead end the session and remove that owner's draft. Stale token callbacks from an earlier binding cannot affect a newer session.
+
 ## Transport and wire behavior
 
 Every contract function is implemented with its named kind: one-shot queries use cancellable subscriptions; Today has a retained subscription canceled by `stopWatching()`. Authentication uses the Convex 0.8.2 `AuthProvider` signatures `login(onIdToken:)`, `loginFromCache(onIdToken:)`, `logout()`, and `extractIdToken(from:)`. Firebase token refreshes push only Firebase ID tokens through the callback; invalid sessions push nil. Subscription/query/upload work and pending private state are canceled or invalidated on identity changes and sign-out.

@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 extension Notification.Name {
     static let takePrivateAccessInvalidated = Notification.Name("TAKE.privateAccessInvalidated")
     static let takeSessionEnded = Notification.Name("TAKE.sessionEnded")
+    static let takeAuthenticationPaused = Notification.Name("TAKE.authenticationPaused")
 }
 
 @MainActor
@@ -46,6 +47,7 @@ final class ProductionService: TakeService, AppleAuthenticationService {
             self?.clearSession()
             Task { await NotificationCoordinator.shared.signOutCleanup() }
         }
+        authentication.onTokenRefreshUnavailable = { [weak self] in self?.pauseAuthentication() }
     }
 
     func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) throws {
@@ -564,6 +566,17 @@ final class ProductionService: TakeService, AppleAuthenticationService {
         serverClockOffset = 0
         invalidatePrivateAccess()
         NotificationCenter.default.post(name: .takeSessionEnded, object: self)
+    }
+
+    private func pauseAuthentication() {
+        sessionEpoch = UUID()
+        authenticatedUID = nil
+        authenticationTask?.cancel(); authenticationTask = nil
+        stopWatching()
+        let queries = Array(pendingQueries.values)
+        pendingQueries.removeAll()
+        queries.forEach { $0() }
+        NotificationCenter.default.post(name: .takeAuthenticationPaused, object: self)
     }
 
     private func invalidatePrivateAccess() {
