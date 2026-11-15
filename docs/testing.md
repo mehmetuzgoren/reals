@@ -6,22 +6,23 @@ Tests are evidence for the layer they actually exercised. A syntax check is not 
 
 Run `node --test verification/*.test.mjs` and `node verification/check-docs.mjs` for the independent probe/documentation tooling. The workflow runs these without secrets. Do not label that job product acceptance.
 
-After receiving the backend PR, inspect its package scripts and run its lockfile install, typecheck, and tests at the exact head. Independently review public DTOs against native decoders and exercise reads/media through [the deployed probe](../verification/README.md) when a real staging deployment and Firebase tokens are available. Backend unit tests with seeded identities do not establish real JWT, HTTP delivery, FCM, or verifier connectivity.
+With the backend implementation checked out, run `cd backend && npm ci && npm run check` (TypeScript and 33 tests at the reviewed snapshot). With FFmpeg/FFprobe 6.1+ installed at `/usr/bin`, run `npm run test:media` for three actual worker-HTTP/decoder integration tests, then `npm --prefix verifier run check` for 61 worker cases. The latter lanes decode real generated media and exercise registered Convex routes, but Convex itself runs in the local test harness with injected identities. They do not establish hosted Firebase JWT acceptance, deployment connectivity, or APNs delivery. Compare current test counts with [recorded evidence](verification-status.md), not an assumed permanent count.
+
+Review public DTOs against native decoders and exercise reads/media through [the deployed probe](../verification/README.md) once a dedicated staging fixture and real Firebase tokens exist. The backend development seed creates round plans only, not that fixture. CI skips the backend job explicitly when this docs-only branch lacks implementation; a skipped job is not a product pass.
 
 For combined unmerged integration, keep the docs PR free of other owners' code. Use a disposable worktree/scratch checkout, apply the native/backend trees at their supplied heads, and record both full SHAs plus docs SHA. Do not mistake the working tree's base SHA for the pair under test. Route defects with file/line, expected/actual behavior, and reproduction to the Captain; do not patch another owner's directories.
 
 ## Native build and XCTest
 
-The accepted project/scheme/output below are pending confirmation from the native implementation. On a Mac or Revyl's native macOS build runner, from `ios/`:
+The delivered project/scheme/scripts are confirmed in native source. On macOS or Revyl's native macOS runner, from `ios/`:
 
 ```sh
-xcodebuild -resolvePackageDependencies -project TAKE.xcodeproj -scheme TAKE
-xcodebuild -project TAKE.xcodeproj -scheme TAKE -configuration Debug \
-  -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+bash scripts/build-simulator.sh
+SIM_ID="$(xcrun simctl create TAKE-tests com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-18-5)"
+TAKE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_ID" bash scripts/test-simulator.sh
 ```
 
-Expected output is `build/Build/Products/Debug-iphonesimulator/TAKE.app`. Native owns its actual Revyl build and XCTest. Resolve an available iOS 18.5 simulator **by its actual UUID** before using `xcodebuild test`; do not guess a device name or report generic-destination `build` as tests. Retain the result bundle/log/build ID and package-resolution evidence.
+Output is `build/Build/Products/Debug-iphonesimulator/TAKE.app`; results are `build/TAKE-tests.xcresult`. The native owner archives `reals/ios` relative to this workspace root and owns Revyl build/XCTest. Scripts resolve packages and build arm64 with `CODE_SIGNING_ALLOWED=NO`; select an actually installed simulator runtime/UUID if the example differs. Retain logs/build IDs and the tested source SHA. Do not report an earlier succeeded artifact as proof of a later push.
 
 The unsigned build omits Apple signing verification. No Xcode or simulator toolchain is installed on the Linux workspace; `swiftc -parse` where available still cannot typecheck SwiftUI/AVFoundation app code for iOS.
 
@@ -31,7 +32,7 @@ Use the built-in mobile/phone lane, not a Revyl MCP or plugin. Read the cloud-ph
 
 Before installing, record native/backend/docs heads, build ID, artifact path or managed-build reference, bundle ID, runtime, and model. Start clean demo data and keep all evidence fictional/public-safe. A phone session is bounded; finish the acceptance loop and sleep/remove the phone when done.
 
-1. Launch without production config. Confirm Demo Mode is accessible without login/network and all three tabs work. Save a screenshot of the locked prompt, safe friend indicators, option labels, and explicit demo state.
+1. Launch without production config. Confirm **Explore Demo Mode** needs no login and all three tabs work. Separately deny network for offline acceptance. Save a screenshot of the locked prompt, safe friend indicators, option labels, and explicit demo state.
 2. Pick a position, open record, and use the explicitly labeled simulator fixture if capture hardware is unavailable. Confirm the 15-second rule, preview/retake, visibility copy, publication state/progress, and reveal. Never call that fixture live recorded video.
 3. Confirm the main feed contains originals only. Play one original, navigate to its detail and chronological flat replies, then publish a video reply. Confirm return navigation keeps sensible feed position and no other cell keeps playing.
 4. Switch to posted Casey and then Dana. Casey must see Blair's reply on Alex; Dana must see Alex but not Blair's reply or its count. This UI observation complements, not replaces, direct-ID/media server probes.

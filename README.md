@@ -4,9 +4,9 @@ A native iPhone app for one daily video opinion: choose a position, publish up t
 
 ## Start here
 
-The repository is being built in separate native, backend, and verification PRs. **This documentation snapshot starts from the `.gitignore`-only bootstrap; it does not yet include an app or backend.** Commands that require `ios/` or `backend/` become runnable only with those implementation PRs. [Verification status](docs/verification-status.md) separates executed checks from planned acceptance gates.
+The app, backend, and verification ship in separate PRs: [native #2](https://github.com/mehmetuzgoren/reals/pull/2), [backend #3](https://github.com/mehmetuzgoren/reals/pull/3), and [docs #1](https://github.com/mehmetuzgoren/reals/pull/1). The docs-only branch does not duplicate their source; commands below require the corresponding implementation checkout. [Verification status](docs/verification-status.md) identifies the exact tested snapshots and remaining gates.
 
-The offline demo must need no account, Firebase configuration, Convex deployment, network, or secrets. Once the native source is present, open `ios/TAKE.xcodeproj`, choose the shared TAKE scheme and an iOS 18+ iPhone simulator, run, and choose **Demo Mode**. The [native setup guide](docs/setup.md#native-offline-demo) records the intended flow and the implementation details that still need confirmation. A simulator fixture is labeled sample footage, not a camera recording.
+The demo needs no account, Firebase configuration, Convex deployment, or secrets. Open `ios/TAKE.xcodeproj`, choose the shared TAKE scheme and an iOS 18+ iPhone simulator, run, and choose **Explore Demo Mode**. The [native setup guide](docs/setup.md#native-offline-demo) includes exact build commands and package pins. Simulator samples are explicitly labeled fictional footage, not camera recordings. Unconfigured demo operation was observed on a cloud iPhone; a network-denied test is still separate.
 
 The demo includes two questions, fictional Alex/Blair/Casey/Dana profiles, playable local clips, identity switching, round release, reset, and simulated publication controls. None of those controls may enter production services or authorization.
 

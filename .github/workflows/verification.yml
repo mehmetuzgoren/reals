@@ -1,4 +1,4 @@
-name: Verification tooling
+name: TAKE verification
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - README.md
       - docs/**
       - verification/**
+      - backend/**
       - .github/workflows/verification.yml
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - README.md
       - docs/**
       - verification/**
+      - backend/**
       - .github/workflows/verification.yml
 
 permissions:
@@ -27,6 +29,8 @@ jobs:
     name: Probe tooling and documentation links (not product acceptance)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.sources.outputs.backend }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -34,3 +38,26 @@ jobs:
           node-version: '24'
       - run: node --test verification/*.test.mjs
       - run: node verification/check-docs.mjs
+      - id: sources
+        shell: bash
+        run: |
+          if test -f backend/package-lock.json && test -f backend/convex/schema.ts && test -f backend/verifier/package.json; then
+            echo 'backend=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'backend=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Backend source is absent from this docs-only checkout; backend verification is skipped, not passed.'
+          fi
+  backend:
+    name: Local Convex and real FFmpeg worker (not hosted acceptance)
+    needs: tooling
+    if: needs.tooling.outputs.backend == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci && npm run check && npm run test:media && npm --prefix verifier run check
+        working-directory: backend

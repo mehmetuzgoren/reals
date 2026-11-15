@@ -171,7 +171,7 @@ export class ConvexProbe {
     const cache = head.headers.get('cache-control')?.toLowerCase().split(',').map((v) => v.trim());
     check(cache?.includes('private') && cache.includes('no-store'));
     const total = Number(head.headers.get('content-length'));
-    check(Number.isInteger(total) && total > 0 && total <= 20 * 1024 * 1024);
+    check(Number.isInteger(total) && total > 0 && total <= 8 * 1024 * 1024);
     const range = await this.fetcher(grant.url, {
       headers: { Range: 'bytes=0-0' }, redirect: 'manual', signal: AbortSignal.timeout(20_000),
     });

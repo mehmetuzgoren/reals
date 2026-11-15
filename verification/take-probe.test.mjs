@@ -177,6 +177,20 @@ test('full mock transport exercises the probe, not the product', async () => {
   assert.ok(results.every((row) => row.passed));
 });
 
+test('media HEAD length obeys the delivered 8 MiB application cap', async () => {
+  for (const total of [8 * 1024 * 1024, 8 * 1024 * 1024 + 1]) {
+    const base = transport();
+    const probe = new ConvexProbe(manifest, tokens, async (url, init) => {
+      const response = await base(url, init);
+      if (init.method === 'HEAD') response.headers.set('content-length', String(total));
+      if (response.status === 206) response.headers.set('content-range', `bytes 0-0/${total}`);
+      return response;
+    });
+    if (total === 8 * 1024 * 1024) await probe.media(grant());
+    else await assert.rejects(() => probe.media(grant()), ProbeFailure);
+  }
+});
+
 test('Dana hidden-count/content leak and a reply in the main feed fail independently', async () => {
   const results = await runProbe(new ConvexProbe(manifest, tokens, transport((value, path, identity) => {
     if (path === 'takes:feed' && identity === 'dana') return { items: [original, reply], nextCursor: null };
