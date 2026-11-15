@@ -46,7 +46,7 @@ final class CaptureController: NSObject, ObservableObject {
                 guard let self else { return }
                 switch self.state {
                 case .preparing, .ready, .recording, .exporting:
-                    self.fail("Recording stopped when TAKE went into the background. Please try again.")
+                    self.fail("Recording stopped when Reals went into the background. Please try again.")
                     self.engine.reset()
                 case .idle, .preview, .failed:
                     break
@@ -73,7 +73,7 @@ final class CaptureController: NSObject, ObservableObject {
         PlaybackCoordinator.shared.clear()
 
         guard cameraAvailable else {
-            fail("A front camera isn't available. The demo's labeled simulator fixture is a separate option.")
+            fail("A front camera isn't available on this device.")
             return
         }
         guard await requestAccess(for: .video), generation == id else {
@@ -85,7 +85,7 @@ final class CaptureController: NSObject, ObservableObject {
             return
         }
         guard !Task.isCancelled, UIApplication.shared.applicationState == .active else {
-            fail("Return to TAKE and try recording again.")
+            fail("Return to Reals and try recording again.")
             return
         }
 
@@ -94,7 +94,7 @@ final class CaptureController: NSObject, ObservableObject {
             guard generation == id else { return }
             if Task.isCancelled || UIApplication.shared.applicationState != .active {
                 engine.reset()
-                fail("Return to TAKE and try recording again.")
+                fail("Return to Reals and try recording again.")
                 return
             }
             state = .ready
@@ -113,7 +113,7 @@ final class CaptureController: NSObject, ObservableObject {
     }
 
     func stop() {
-        guard state == .recording else { return }
+        guard state == .recording, elapsed >= 3 else { return }
         state = .exporting
         clockTask?.cancel()
         clockTask = nil
@@ -424,7 +424,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let duration = try await asset.load(.duration)
                 let video = try await asset.loadTracks(withMediaType: .video)
                 let audio = try await asset.loadTracks(withMediaType: .audio)
-                guard duration.seconds.isFinite, duration.seconds > 0, !video.isEmpty, !audio.isEmpty,
+                guard duration.seconds.isFinite, duration.seconds >= 3, !video.isEmpty, !audio.isEmpty,
                       let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset1280x720),
                       exporter.supportedFileTypes.contains(.mp4) else {
                     throw CaptureFailure("Your take needs playable video and sound. Please record it again.")
@@ -459,7 +459,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let videoFormats = try await videoTrack.load(.formatDescriptions)
                 let audioFormats = try await audioTrack.load(.formatDescriptions)
                 let bytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard finalDuration.isFinite, finalDuration > 0, finalDuration <= 15,
+                guard finalDuration.isFinite, finalDuration >= 3, finalDuration <= 15,
                       finalDuration + 0.15 >= min(duration.seconds, 14.9), bytes > 0, bytes <= 8 * 1_024 * 1_024,
                       videoFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 }),
                       audioFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kAudioFormatMPEG4AAC }) else {

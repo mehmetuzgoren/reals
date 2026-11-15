@@ -45,7 +45,7 @@ struct TodayView: View {
 
     private var header: some View {
         ZStack {
-            Text("TAKE").font(.system(size: 22, weight: .bold)).tracking(-0.6)
+            Text("Reals").font(.system(size: 22, weight: .bold)).tracking(-0.6).onLongPressGesture { if model.isDemo { showDemo = true } }
             HStack {
                 if model.isDemo {
                     Button { showDemo = true } label: { Text("Demo").font(.caption.weight(.medium)).foregroundStyle(TakeTheme.muted).frame(minWidth: 44, minHeight: 44) }.accessibilityIdentifier("Demo controls")

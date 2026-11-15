@@ -37,7 +37,7 @@ struct TakeDetailView: View {
                     if cursor != nil { Button("Load more replies") { Task { await load(more: true) } }.frame(minHeight: 44) }
                 } else if let failure { EmptyCard(symbol: "lock", title: "This conversation is unavailable.", message: failure) }
                 else { ProgressView("Opening conversation…").frame(maxWidth: .infinity).padding(50) }
-                if reported { InlineNotice(text: "Report received. Thanks for helping keep TAKE safe.") }
+                if reported { InlineNotice(text: "Report received. Thanks for helping keep Reals safe.") }
             }.padding(.horizontal, 22).padding(.vertical, 12).padding(.bottom, 24)
         }
         .takeScreen().navigationTitle(original?.author.displayName ?? "Take & replies").navigationBarTitleDisplayMode(.inline)

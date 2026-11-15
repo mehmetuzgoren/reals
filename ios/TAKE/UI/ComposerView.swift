@@ -79,7 +79,7 @@ struct ComposerView: View {
         .onChange(of: playback.errorMessage) { _, message in if let message, draft.clip != nil { draft.failure = message } }
         .confirmationDialog("Use a simulator fixture?", isPresented: $showFixtureConfirmation, titleVisibility: .visible) {
             Button("Use labeled 4-second sample") { useFixture() }
-        } message: { Text("This uses bundled fictional video, not the camera. It stays in Demo Mode and can never be sent to live TAKE.") }
+        } message: { Text("This uses bundled fictional video, not the camera. It stays in Demo Mode and can never be sent to live Reals.") }
         .confirmationDialog("Keep this recording?", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("Save draft and close") { draft = model.saveDraft(draft); dismiss() }
             Button("Discard recording", role: .destructive) { Task { if let id = draft.uploadId { try? await model.service?.cancelUpload(uploadId: id) }; model.clearDraft(); dismiss() } }

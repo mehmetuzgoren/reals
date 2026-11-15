@@ -12,8 +12,15 @@ protocol TakeService: AnyObject {
     func stopWatching()
     func watchConversation(originalId: String, _ changed: @escaping () -> Void) -> () -> Void
     func feed(roundId: String, cursor: String?) async throws -> Page<OriginalSummary>
+    func forYou(roundId: String, cursor: String?) async throws -> Page<OriginalSummary>
     func detail(originalId: String) async throws -> OriginalSummary
     func replies(originalId: String, cursor: String?) async throws -> Page<ReplySummary>
+    func toggleLike(contentId: String, kind: ContentKind) async throws -> LikeResult
+    func comments(contentId: String, kind: ContentKind, cursor: String?) async throws -> Page<CommentSummary>
+    func createComment(contentId: String, kind: ContentKind, text: String) async throws -> CreateCommentResult
+    func deleteComment(commentId: String) async throws
+    func battle(battleId: String) async throws -> BattleState
+    func vote(battleId: String, side: BattleSide) async throws -> BattleVoteResult
     func beginUpload(draft: PublicationDraft) async throws -> UploadIntent
     func upload(clip: RecordedClip, intent: UploadIntent, progress: @escaping (Double) -> Void) async throws
     func finalize(uploadId: String) async throws -> PublicationResult
@@ -53,12 +60,26 @@ enum DemoIdentity: String, CaseIterable, Identifiable, Codable {
     var name: String { rawValue.capitalized }
 }
 
+enum DemoScenario: String, CaseIterable, Identifiable, Codable {
+    case legacy, mocks
+    var id: String { rawValue }
+}
+
 @MainActor
 protocol DemoControlling: AnyObject {
     var identity: DemoIdentity { get }
+    var demoScenario: DemoScenario { get }
+    func switchScenario(_ scenario: DemoScenario)
     func switchIdentity(_ identity: DemoIdentity)
     func releaseRound(_ number: Int)
     func simulatePublication()
     func failNextUpload()
     func reset()
+}
+
+extension DemoControlling {
+    var scenario: DemoScenario {
+        get { demoScenario }
+        set { switchScenario(newValue) }
+    }
 }

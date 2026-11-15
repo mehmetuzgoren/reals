@@ -9,6 +9,8 @@ final class AppModel: ObservableObject {
     @Published var today: TodayState?
     @Published var feed: [OriginalSummary] = []
     @Published var feedCursor: String?
+    @Published var publicFeed: [OriginalSummary] = []
+    @Published var publicFeedCursor: String?
     @Published var friends: FriendsState?
     @Published var profile: ProfileState?
     @Published var needsOnboarding = false
@@ -25,12 +27,12 @@ final class AppModel: ObservableObject {
     var isDemo: Bool { service?.isDemo == true }
     var demo: (any DemoControlling)? { service as? any DemoControlling }
 
-    func enterDemo() async {
+    func enterDemo(scenario: DemoScenario = .mocks, reset: Bool = false) async {
         let previousService = service
         invalidate()
         viewer = nil; needsOnboarding = false
         if let previousService, !previousService.isDemo { try? await previousService.signOut() }
-        let demo = DemoService(reset: ProcessInfo.processInfo.arguments.contains("--reset-demo"))
+        let demo = DemoService(reset: reset, scenario: scenario)
         service = demo
         UserDefaults.standard.set("demo", forKey: "TAKE.lastMode")
         await establishSession()
@@ -93,7 +95,9 @@ final class AppModel: ObservableObject {
             case .success(let state):
                 guard self.acceptToday(state) else { return }
                 self.refreshTask?.cancel()
-                if state.canViewFriends { self.refreshTask = Task { await self.refreshFeed() } }
+                if state.canViewFriends {
+                    self.refreshTask = Task { await self.refreshFeed(); await self.refreshPublicFeed() }
+                }
             case .failure(let failure):
                 self.today = nil; self.feed = []; self.feedCursor = nil
                 self.clearPrivateContent()
@@ -114,7 +118,7 @@ final class AppModel: ObservableObject {
             let profile = try await service.profile(cursor: nil)
             guard isCurrentAccess(generation: epoch, revision: revision) else { return }
             self.friends = friends; self.profile = profile; viewer = profile.profile
-            if state.canViewFriends { await refreshFeed() }
+            if state.canViewFriends { await refreshFeed(); await refreshPublicFeed() }
             guard isCurrentAccess(generation: epoch, revision: revision) else { return }
             recoverDraft()
             if authenticationNeedsRefresh { authenticationNeedsRefresh = false; watch() }
@@ -142,6 +146,22 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func refreshPublicFeed(more: Bool = false) async {
+        guard let service, let round = today?.round, today?.canViewFriends == true else { return }
+        let epoch = generation
+        let revision = accessRevision
+        do {
+            let page = try await service.forYou(roundId: round.id, cursor: more ? publicFeedCursor : nil)
+            guard isCurrentAccess(generation: epoch, revision: revision), today?.round?.id == round.id, today?.canViewFriends == true else { return }
+            publicFeed = more ? publicFeed + page.items.filter { item in !publicFeed.contains(where: { $0.id == item.id }) } : page.items
+            publicFeedCursor = page.nextCursor
+        } catch {
+            guard isCurrentAccess(generation: epoch, revision: revision) else { return }
+            if more, (error as? ServiceFailure)?.code == "NOT_FOUND" { await relationshipChanged() }
+            else { self.error = error.localizedDescription }
+        }
+    }
+
     @discardableResult
     func acceptToday(_ state: TodayState) -> Bool {
         guard state.serverNow.isFinite, state.serverNow >= (today?.serverNow ?? -.infinity) else { return false }
@@ -152,7 +172,7 @@ final class AppModel: ObservableObject {
             clearPrivateContent()
             if recoveredDraft?.roundId != state.round?.id { clearDraft() }
         }
-        if changedRound || !state.canViewFriends { feed = []; feedCursor = nil }
+        if changedRound || !state.canViewFriends { feed = []; feedCursor = nil; publicFeed = []; publicFeedCursor = nil }
         today = state
         return true
     }
@@ -161,7 +181,7 @@ final class AppModel: ObservableObject {
 
     private func clearPrivateContent() {
         accessRevision = UUID()
-        feed = []; feedCursor = nil
+        feed = []; feedCursor = nil; publicFeed = []; publicFeedCursor = nil
         PlaybackCoordinator.shared.clear()
         URLCache.shared.removeAllCachedResponses()
     }
@@ -201,14 +221,15 @@ final class AppModel: ObservableObject {
         service?.stopWatching()
         PlaybackCoordinator.shared.clear()
         URLCache.shared.removeAllCachedResponses()
-        today = nil; feed = []; feedCursor = nil; friends = nil; profile = nil; recoveredDraft = nil
+        today = nil; feed = []; feedCursor = nil; publicFeed = []; publicFeedCursor = nil; friends = nil; profile = nil; recoveredDraft = nil
         if !keepSession { selectedTab = 0 }
     }
 
     private var draftDirectory: URL? {
         guard let id = service?.viewerID ?? viewer?.id else { return nil }
         let safeID = Data(id.utf8).base64EncodedString().replacingOccurrences(of: "/", with: "_")
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("TAKE/\(isDemo ? "DemoDrafts" : "LiveDrafts")/\(safeID)", isDirectory: true)
+        let namespace = isDemo ? "DemoDrafts/\(demo?.demoScenario.rawValue ?? "legacy")" : "LiveDrafts"
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("TAKE/\(namespace)/\(safeID)", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
@@ -222,7 +243,7 @@ final class AppModel: ObservableObject {
                 do {
                     if !FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.copyItem(at: clip.url, to: destination) }
                     draft.clip = RecordedClip(url: destination, durationMs: clip.durationMs, source: clip.source, createdAt: clip.createdAt)
-                } catch { self.error = "Couldn't save this draft. Keep TAKE open and try again." }
+                } catch { self.error = "Couldn't save this draft. Keep Reals open and try again." }
             }
         }
         if let data = try? JSONEncoder().encode(draft) { try? data.write(to: directory.appendingPathComponent("draft.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) }
@@ -267,7 +288,8 @@ final class AppModel: ObservableObject {
 
     func publish(_ initial: PublicationDraft, update: @escaping (PublicationDraft, Double) -> Void) async throws -> PublicationDraft {
         guard let service, initial.ownerId == service.viewerID, initial.isDemo == service.isDemo, let clip = initial.clip else { throw ServiceFailure.notFound }
-        guard service.isDemo || clip.source == .camera else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require a video recorded in TAKE.", retryable: false) }
+        guard service.isDemo || clip.source == .camera else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require a video recorded in Reals.", retryable: false) }
+        guard clip.durationMs.isFinite, (3_000...15_000).contains(clip.durationMs) else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Record between 3 and 15 seconds.", retryable: false) }
         var draft = saveDraft(initial)
         let epoch = generation
         let revision = accessRevision

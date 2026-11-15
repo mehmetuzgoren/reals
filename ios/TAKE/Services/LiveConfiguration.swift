@@ -10,10 +10,12 @@ struct LiveConfiguration {
     }
 
     static func load(bundle: Bundle = .main) throws -> LiveConfiguration {
-        guard let deployment = bundle.object(forInfoDictionaryKey: "CONVEX_URL") as? String,
-              let site = bundle.object(forInfoDictionaryKey: "CONVEX_SITE_URL") as? String else {
-            throw ServiceFailure.notConfigured
-        }
+        var deployment = bundle.object(forInfoDictionaryKey: "CONVEX_URL") as? String ?? ""
+        var site = bundle.object(forInfoDictionaryKey: "CONVEX_SITE_URL") as? String ?? ""
+        #if DEBUG
+        if !validSetting(deployment) { deployment = "https://first-mandrill-982.convex.cloud" }
+        if !validSetting(site) { site = "https://first-mandrill-982.convex.site" }
+        #endif
         let convexURL = try origin(deployment)
         let convexSiteURL = try origin(site)
         guard convexURL.host?.lowercased() != convexSiteURL.host?.lowercased() else {
@@ -54,6 +56,7 @@ struct LiveConfiguration {
         return !trimmed.isEmpty && trimmed == value && !value.contains("$(") && !value.contains("${")
             && !lowered.contains("replace_me") && !lowered.contains("your_project")
             && !lowered.contains("your-project") && !lowered.contains("example")
+            && !lowered.contains("placeholder") && !lowered.contains("unconfigured")
     }
 
     private static func origin(_ value: String) throws -> URL {

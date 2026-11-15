@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		010F132E7D8BF4F885CD915F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EED6F59312CCAC4C8988AB01 /* PrivacyInfo.xcprivacy */; };
+		02B8E197203D9E48112055C7 /* RealsV4Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01496B469343DB31D5BE856F /* RealsV4Tests.swift */; };
 		0356F1AE4A8BCA8FF5DAF099 /* MediaAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88646CC2026626DE09B05950 /* MediaAudioSession.swift */; };
 		064C887DCAA113C2EA99E3BE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B992674B9265A783229BF10 /* Foundation.framework */; };
 		090C5D5C9805A3B54590AC5E /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83677111744E2B711CCA6B10 /* NotificationCoordinator.swift */; };
@@ -32,14 +33,20 @@
 		5ED54EF2F41B69FAD86A0D09 /* ContentVideoCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971FB356D9C9C0FBC10144AB /* ContentVideoCard.swift */; };
 		62AC806A15BAE37F12268D63 /* poster-dana.png in Resources */ = {isa = PBXBuildFile; fileRef = 3214AC1A994B77B25814D67E /* poster-dana.png */; };
 		64D338EE6DFBC752B2DF2602 /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A704B898148BA0C0821FED /* FriendsView.swift */; };
+		66D7181A8E4E57A11766610E /* RealsTakeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CD25640B398F232EB40EBC0 /* RealsTakeView.swift */; };
 		6C101CA4E9A4A73236085E29 /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = F898B5615C125BB2CD7C93E3 /* ConvexMobile */; };
+		7A60F38734C443514FEB236E /* RealsCommentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245942C3769544C4FC21B987 /* RealsCommentsView.swift */; };
+		7AB2427CB43BF72523C179E8 /* RealsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608B9F23F33CF7D37AB1F1BB /* RealsHomeView.swift */; };
 		81B7D3E8E97A1D90BFCE9FED /* avatar-blair.png in Resources */ = {isa = PBXBuildFile; fileRef = BD1C4BA0868773706DBFE2FE /* avatar-blair.png */; };
+		8299C2B2E751F30A65A0FE36 /* RealsMocksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7713C9A76376ED86D3DBA0 /* RealsMocksTests.swift */; };
 		86D5511A7864DA6C925BBA28 /* Services.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721381B8AB8E4CB4F1AE32E2 /* Services.swift */; };
+		8C3245B1B080FA69C2ACF27B /* RealsBattleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA06D0E2EB9B5D3F8FF5E5E8 /* RealsBattleView.swift */; };
 		8D8BC8DF76C94A70A6E08A6B /* ProductionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E46DDEB99604E25D8DC830 /* ProductionService.swift */; };
 		8DF922D6644204C0C4CBF309 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 301C8C573DBE89A051978D29 /* TodayView.swift */; };
 		8F1E5CDBEBC14050E4B9AB1B /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = 8D71FB2B0F4EED75E9FFD8F5 /* ConvexMobile */; };
 		9350B5923DE15B6586B4987B /* TAKEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F0C6D7923FAFB43E9D2477 /* TAKEApp.swift */; };
 		93A077D2598EA6C4FAF0C5BF /* ConvexAuthentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41826C8508F6786C5A249E2C /* ConvexAuthentication.swift */; };
+		97D0F43A89773CB2A622D185 /* RealsComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F8FCE8B1E7AC3C09B82232 /* RealsComposerView.swift */; };
 		A40D3D7B9EB7F15013BAEC38 /* poster-blair.png in Resources */ = {isa = PBXBuildFile; fileRef = BA87FABF71E3CC64F4181CAA /* poster-blair.png */; };
 		CC65A28EF10D3E4337D04151 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587944EFC72A449231E0EED7 /* Models.swift */; };
 		DDB44202F520D4B08F2FDF8B /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51BF49B02DA16E075169C6D1 /* AppModel.swift */; };
@@ -47,6 +54,7 @@
 		E35DA35AAB08AD8B16E717C1 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6B992674B9265A783229BF10 /* Foundation.framework */; };
 		E5C822FD32ABC20ED7F4C4F1 /* poster-alex.png in Resources */ = {isa = PBXBuildFile; fileRef = 0EB79D0AF04977E1FFD1BDC6 /* poster-alex.png */; };
 		F14EC367E298F4216B590FE9 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA059C91087E8CC071826B1 /* DesignSystem.swift */; };
+		F89BC8A58A3D07E0416C6B3A /* sample-mock.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 6F731FADAC50D69DC87CC415 /* sample-mock.mp4 */; };
 		FAD0A3617DBF8CE576724D46 /* LiveConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E334514850AE63A66BBF188F /* LiveConfiguration.swift */; };
 /* End PBXBuildFile section */
 
@@ -69,9 +77,13 @@
 
 /* Begin PBXFileReference section */
 		011B41F5F3F83DB1C3EDB21B /* build-simulator.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; path = "build-simulator.sh"; sourceTree = "<group>"; };
+		01496B469343DB31D5BE856F /* RealsV4Tests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RealsV4Tests.swift; sourceTree = "<group>"; };
 		037F00ACBC5AD3FEBB1BB571 /* Base.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		06F8FCE8B1E7AC3C09B82232 /* RealsComposerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RealsComposerView.swift; path = UI/RealsComposerView.swift; sourceTree = "<group>"; };
 		0EB79D0AF04977E1FFD1BDC6 /* poster-alex.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "poster-alex.png"; path = "Resources/poster-alex.png"; sourceTree = "<group>"; };
+		1D7713C9A76376ED86D3DBA0 /* RealsMocksTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RealsMocksTests.swift; sourceTree = "<group>"; };
 		23746C24848F888BA47785E6 /* ComposerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ComposerView.swift; path = UI/ComposerView.swift; sourceTree = "<group>"; };
+		245942C3769544C4FC21B987 /* RealsCommentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RealsCommentsView.swift; path = UI/RealsCommentsView.swift; sourceTree = "<group>"; };
 		28D894F150C3B0ED67CF5813 /* TAKE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TAKE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		301C8C573DBE89A051978D29 /* TodayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TodayView.swift; path = UI/TodayView.swift; sourceTree = "<group>"; };
 		3214AC1A994B77B25814D67E /* poster-dana.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "poster-dana.png"; path = "Resources/poster-dana.png"; sourceTree = "<group>"; };
@@ -84,7 +96,9 @@
 		51BF49B02DA16E075169C6D1 /* AppModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppModel.swift; path = UI/AppModel.swift; sourceTree = "<group>"; };
 		587944EFC72A449231E0EED7 /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Models.swift; path = Domain/Models.swift; sourceTree = "<group>"; };
 		5D22726DA58E47DC364CE784 /* DemoService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DemoService.swift; path = Demo/DemoService.swift; sourceTree = "<group>"; };
+		608B9F23F33CF7D37AB1F1BB /* RealsHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RealsHomeView.swift; path = UI/RealsHomeView.swift; sourceTree = "<group>"; };
 		6B992674B9265A783229BF10 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		6F731FADAC50D69DC87CC415 /* sample-mock.mp4 */ = {isa = PBXFileReference; includeInIndex = 1; name = "sample-mock.mp4"; path = "Resources/sample-mock.mp4"; sourceTree = "<group>"; };
 		6FEB693DCC8637438F542E41 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		721381B8AB8E4CB4F1AE32E2 /* Services.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Services.swift; path = Domain/Services.swift; sourceTree = "<group>"; };
 		77335A362E7EB3234BC16D5C /* avatar-dana.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "avatar-dana.png"; path = "Resources/avatar-dana.png"; sourceTree = "<group>"; };
@@ -94,9 +108,11 @@
 		83677111744E2B711CCA6B10 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = NotificationCoordinator.swift; path = Services/NotificationCoordinator.swift; sourceTree = "<group>"; };
 		88646CC2026626DE09B05950 /* MediaAudioSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MediaAudioSession.swift; path = Capture/MediaAudioSession.swift; sourceTree = "<group>"; };
 		893927AD544BA7273C54F010 /* avatar-casey.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "avatar-casey.png"; path = "Resources/avatar-casey.png"; sourceTree = "<group>"; };
+		943162C8D1071A357C4F8619 /* export-mock-screenshots.py */ = {isa = PBXFileReference; includeInIndex = 1; path = "export-mock-screenshots.py"; sourceTree = "<group>"; };
 		971FB356D9C9C0FBC10144AB /* ContentVideoCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ContentVideoCard.swift; path = UI/ContentVideoCard.swift; sourceTree = "<group>"; };
 		99D451E5961A31DFA4FB2DF6 /* poster-casey.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; name = "poster-casey.png"; path = "Resources/poster-casey.png"; sourceTree = "<group>"; };
 		9C75BD27B7E4C5EB0F3C0DAB /* ProfileView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ProfileView.swift; path = UI/ProfileView.swift; sourceTree = "<group>"; };
+		9CD25640B398F232EB40EBC0 /* RealsTakeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RealsTakeView.swift; path = UI/RealsTakeView.swift; sourceTree = "<group>"; };
 		A248FE6D41D9EA1B838BE9CE /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlaybackCoordinator.swift; path = Capture/PlaybackCoordinator.swift; sourceTree = "<group>"; };
 		A69F141F7F3EBBBE3DE660E9 /* TAKETests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TAKETests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8C77447F438A07F4C972A91 /* DemoControlsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DemoControlsView.swift; path = UI/DemoControlsView.swift; sourceTree = "<group>"; };
@@ -107,6 +123,7 @@
 		C96821FCC5425212083FABA4 /* sample-blair.mp4 */ = {isa = PBXFileReference; includeInIndex = 1; name = "sample-blair.mp4"; path = "Resources/sample-blair.mp4"; sourceTree = "<group>"; };
 		D2A704B898148BA0C0821FED /* FriendsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FriendsView.swift; path = UI/FriendsView.swift; sourceTree = "<group>"; };
 		D7F0C6D7923FAFB43E9D2477 /* TAKEApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TAKEApp.swift; sourceTree = "<group>"; };
+		DA06D0E2EB9B5D3F8FF5E5E8 /* RealsBattleView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RealsBattleView.swift; path = UI/RealsBattleView.swift; sourceTree = "<group>"; };
 		DD3D3E767E99522197CF4F1B /* TAKEUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TAKEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E334514850AE63A66BBF188F /* LiveConfiguration.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LiveConfiguration.swift; path = Services/LiveConfiguration.swift; sourceTree = "<group>"; };
 		EB041DDB38F0CE66FDAB5CF1 /* sample-alex.mp4 */ = {isa = PBXFileReference; includeInIndex = 1; name = "sample-alex.mp4"; path = "Resources/sample-alex.mp4"; sourceTree = "<group>"; };
@@ -151,6 +168,7 @@
 			isa = PBXGroup;
 			children = (
 				FD0F87FFF1EB436424F29254 /* TakeFlowTests.swift */,
+				1D7713C9A76376ED86D3DBA0 /* RealsMocksTests.swift */,
 			);
 			name = TAKEUITests;
 			path = TAKEUITests;
@@ -183,6 +201,7 @@
 			isa = PBXGroup;
 			children = (
 				F5F13A743C5F3D49C12DD85C /* DemoServiceTests.swift */,
+				01496B469343DB31D5BE856F /* RealsV4Tests.swift */,
 			);
 			name = TAKETests;
 			path = TAKETests;
@@ -194,6 +213,7 @@
 				011B41F5F3F83DB1C3EDB21B /* build-simulator.sh */,
 				EDCDD8A912403D67D00EDDB7 /* generate-fixtures.py */,
 				81BEDCCB72201CC11D6853B4 /* test-simulator.sh */,
+				943162C8D1071A357C4F8619 /* export-mock-screenshots.py */,
 			);
 			name = scripts;
 			path = scripts;
@@ -246,6 +266,12 @@
 				C96821FCC5425212083FABA4 /* sample-blair.mp4 */,
 				36780BAC9FC9FE055735EA3D /* Info.plist */,
 				3A7B82452EB9EE0D65FB01C2 /* TAKE.entitlements */,
+				608B9F23F33CF7D37AB1F1BB /* RealsHomeView.swift */,
+				06F8FCE8B1E7AC3C09B82232 /* RealsComposerView.swift */,
+				9CD25640B398F232EB40EBC0 /* RealsTakeView.swift */,
+				245942C3769544C4FC21B987 /* RealsCommentsView.swift */,
+				DA06D0E2EB9B5D3F8FF5E5E8 /* RealsBattleView.swift */,
+				6F731FADAC50D69DC87CC415 /* sample-mock.mp4 */,
 			);
 			name = TAKE;
 			path = TAKE;
@@ -390,6 +416,7 @@
 				62AC806A15BAE37F12268D63 /* poster-dana.png in Resources */,
 				3D0866E0603D6679BB9F03F8 /* sample-alex.mp4 in Resources */,
 				2C9DD87B7B9E6C43A6C44C4B /* sample-blair.mp4 in Resources */,
+				F89BC8A58A3D07E0416C6B3A /* sample-mock.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -402,15 +429,13 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		98E145D9B0B430B42ADAE4B1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				09DA47DBBF601F9439342D9B /* TakeFlowTests.swift in Sources */,
+				8299C2B2E751F30A65A0FE36 /* RealsMocksTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -440,6 +465,11 @@
 				44FACD25E818FD82217916B5 /* RootView.swift in Sources */,
 				4A8C197B78062A223A2F7119 /* TakeDetailView.swift in Sources */,
 				8DF922D6644204C0C4CBF309 /* TodayView.swift in Sources */,
+				7AB2427CB43BF72523C179E8 /* RealsHomeView.swift in Sources */,
+				97D0F43A89773CB2A622D185 /* RealsComposerView.swift in Sources */,
+				66D7181A8E4E57A11766610E /* RealsTakeView.swift in Sources */,
+				7A60F38734C443514FEB236E /* RealsCommentsView.swift in Sources */,
+				8C3245B1B080FA69C2ACF27B /* RealsBattleView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -448,6 +478,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2E6645625FEAA3C91C7C99E8 /* DemoServiceTests.swift in Sources */,
+				02B8E197203D9E48112055C7 /* RealsV4Tests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -486,7 +517,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.take.app;
 				PRODUCT_NAME = TAKE;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -533,7 +563,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.take.app;
 				PRODUCT_NAME = TAKE;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

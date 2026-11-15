@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FriendsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var results: [SearchResult] = []
     @State private var searching = false
@@ -12,9 +13,18 @@ struct FriendsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Your circle.").font(.title2.bold()).tracking(-0.5)
-                    Text("Find friends by username. No contacts upload, no public discovery.").font(.subheadline).foregroundStyle(TakeTheme.muted)
+                if let viewer = model.viewer {
+                    NavigationLink { ProfileView() } label: {
+                        HStack(spacing: 12) {
+                            RealsAvatar(profile: viewer, size: 40)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("You").font(.system(size: 17, weight: .bold))
+                                Text("@\(viewer.username)").font(.system(size: 14)).foregroundStyle(TakeTheme.muted)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(TakeTheme.muted)
+                        }.padding(.vertical, 10)
+                    }.buttonStyle(.plain).accessibilityIdentifier("You")
                 }
                 HStack {
                     Image(systemName: "magnifyingglass").foregroundStyle(TakeTheme.muted)
@@ -40,7 +50,7 @@ struct FriendsView: View {
                         }
                     }
                     sectionHeader("APPROVED FRIENDS", count: state.approved.count)
-                    if state.approved.isEmpty { EmptyCard(symbol: "person.2", title: "A small circle starts with one.", message: "Search a friend's username above. Only accepted requests open the door to each other's takes.") }
+                    if state.approved.isEmpty { Text("Search a username to add a friend").font(.system(size: 15)).foregroundStyle(TakeTheme.muted) }
                     ForEach(state.approved) { profile in
                         HStack {
                             person(profile)
@@ -69,6 +79,16 @@ struct FriendsView: View {
             }.padding(24).padding(.bottom, 24)
         }
         .navigationTitle("Friends").navigationBarTitleDisplayMode(.inline).takeScreen()
+        .toolbar(.visible, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { if model.demo?.demoScenario == .legacy { model.selectedTab = 0 } else { dismiss() } } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+                }
+                .accessibilityLabel("Back")
+            }
+        }
         .refreshable { await model.refresh() }
         .task(id: search) { await runSearch() }
         .confirmationDialog("Remove \(removeTarget?.displayName ?? "friend")?", isPresented: Binding(get: { removeTarget != nil }, set: { if !$0 { removeTarget = nil } }), titleVisibility: .visible) {

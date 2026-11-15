@@ -1,2 +1,6 @@
 CONVEX_URL = https:/$()/replace_me.convex.cloud
 CONVEX_SITE_URL = https:/$()/replace_me.convex.site
+
+// To run on your own iPhone, set a bundle identifier unique to you and your Apple team ID.
+// PRODUCT_BUNDLE_IDENTIFIER = com.yourname.reals
+// DEVELOPMENT_TEAM = ABCDE12345

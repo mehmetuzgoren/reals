@@ -3,10 +3,10 @@ import UIKit
 
 enum TakeTheme {
     static let background = Color.black
-    static let surface = Color(white: 0.065)
+    static let surface = Color(white: 17.0 / 255.0)
     static let raised = Color(white: 0.12)
     static let white = Color.white
-    static let muted = Color(white: 0.64)
+    static let muted = Color(white: 142.0 / 255.0)
     @MainActor static func haptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) { UIImpactFeedbackGenerator(style: style).impactOccurred() }
 }
 
@@ -58,6 +58,28 @@ struct Eyebrow: View {
     let text: String
     var color: Color = TakeTheme.muted
     var body: some View { Text(text).font(.caption.weight(.semibold)).tracking(0.6).foregroundStyle(color) }
+}
+
+struct RealsAvatar: View {
+    let profile: PublicProfile
+    var size: CGFloat = 32
+    var body: some View {
+        Group {
+            if let descriptor = profile.avatar, let url = URL(string: descriptor.url), url.scheme == "https" {
+                AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { initial }
+            } else { initial }
+        }
+        .frame(width: size, height: size)
+        .background(Color(white: 42.0 / 255.0), in: Circle())
+        .clipShape(Circle())
+        .saturation(0)
+        .accessibilityHidden(true)
+    }
+    private var initial: some View { Text(profile.initial).font(.system(size: size * 0.43, weight: .medium)).foregroundStyle(.white) }
+}
+
+struct RealsPlayTriangle: View {
+    var body: some View { Image(systemName: "play.fill").font(.system(size: 15, weight: .regular)).foregroundStyle(TakeTheme.muted) }
 }
 
 struct EmptyCard: View {

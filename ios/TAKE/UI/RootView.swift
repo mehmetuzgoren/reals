@@ -8,16 +8,28 @@ struct RootView: View {
     var body: some View {
         Group {
             if model.needsOnboarding { ProfileOnboardingView() }
-            else if model.viewer != nil { MainTabsView().id(model.generation.uuidString + model.accessRevision.uuidString) }
+            else if model.viewer != nil {
+                Group {
+                    if model.demo?.demoScenario == .legacy { MainTabsView() }
+                    else { NavigationStack { RealsHomeView() } }
+                }.id(model.generation.uuidString + model.accessRevision.uuidString)
+            }
             else { WelcomeView() }
         }
         .environmentObject(model)
         .preferredColorScheme(.dark)
         .tint(TakeTheme.white)
+        .statusBarHidden(true)
+        .persistentSystemOverlays(.hidden)
         .alert("A quick heads-up", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
         .task {
             NotificationCoordinator.shared.onOpen = { Task { model.selectedTab = 0; await model.refresh() } }
-            if UserDefaults.standard.string(forKey: "TAKE.lastMode") == "demo" || ProcessInfo.processInfo.arguments.contains("--demo") { await model.enterDemo() }
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--demo"), arguments.contains("--reset-demo"), !arguments.contains("--mock-demo") {
+                await model.enterDemo(scenario: .legacy, reset: true)
+            } else if UserDefaults.standard.string(forKey: "TAKE.lastMode") == "demo" || arguments.contains("--demo") {
+                await model.enterDemo(reset: arguments.contains("--reset-mock-demo"))
+            }
             else if UserDefaults.standard.string(forKey: "TAKE.lastMode") == "live" { await model.restoreLive() }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -39,21 +51,8 @@ struct WelcomeView: View {
     @State private var showDeveloperSignIn = false
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                Text("TAKE").font(.system(size: 22, weight: .bold)).tracking(-0.6).frame(maxWidth: .infinity)
-                .padding(.top, 28)
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("One question.\nYour perspective.").font(.system(.largeTitle, weight: .bold)).tracking(-1)
-                    Text("Up to 15 seconds. Just you and the people you know.").font(.subheadline).foregroundStyle(TakeTheme.muted)
-                }
-                .padding(.top, 76).padding(.bottom, 24)
-                VStack(alignment: .leading, spacing: 18) {
-                    step("01", "Pick a side", "A fresh question, at a surprise time each day.")
-                    step("02", "Give your take", "Up to 15 seconds. You post before you peek.")
-                    step("03", "Open the conversation", "See friends who posted. Reply with a video.")
-                }
-                PrimaryButton(title: "Explore Demo Mode", symbol: "play.fill") { Task { await model.enterDemo() } }
-                Text("Offline. Fictional friends. Clearly labeled sample clips. No account needed.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+            VStack(spacing: 18) {
+                Text("Reals").font(.system(size: 40, weight: .bold)).tracking(-1).padding(.top, 150).padding(.bottom, 160)
                 BrowserAppleSignInButton {
                     Task {
                         signingIn = true
@@ -72,23 +71,20 @@ struct WelcomeView: View {
                     }
                 }
                 .frame(height: 54).clipShape(Capsule())
-                .disabled(signingIn || (try? LiveConfiguration.load()) == nil)
-                if (try? LiveConfiguration.load()) == nil { Text("Live sign-in isn't available in this build. The complete offline demo is ready to explore.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity) }
-                Text("Only approved friends who have posted can see your take. No public profiles. No followers.").font(.caption).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                .disabled(signingIn)
+                Button { Task { await model.enterDemo() } } label: {
+                    Text("Try the demo").font(.system(size: 17, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 56)
+                        .overlay(Capsule().stroke(.white, lineWidth: 1))
+                }.buttonStyle(.plain).accessibilityIdentifier("Try the demo")
+                Text("An offline demo with fictional people and sample clips.").font(.system(size: 13)).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center)
+                #if DEBUG
+                Button("Sign in with username") { showDeveloperSignIn = true }.font(.system(size: 15)).frame(minHeight: 44)
+                #endif
             }
             .padding(24).frame(maxWidth: 580)
         }
         .takeScreen()
         .sheet(isPresented: $showDeveloperSignIn) { DeveloperSignInView().environmentObject(model) }
-        .onAppear {
-            showDeveloperSignIn = ProcessInfo.processInfo.arguments.contains("--development-auth") && !ProcessInfo.processInfo.arguments.contains("--demo")
-        }
-    }
-    private func step(_ number: String, _ title: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            Text(number).font(.caption.monospaced().bold()).foregroundStyle(TakeTheme.white).padding(10).background(TakeTheme.raised, in: Circle())
-            VStack(alignment: .leading, spacing: 3) { Text(title).font(.headline); Text(text).font(.subheadline).foregroundStyle(TakeTheme.muted) }
-        }
     }
 }
 
@@ -126,7 +122,7 @@ struct DeveloperSignInView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Development deployments only. This screen isn't part of TAKE or Offline Demo Mode.")
+                    Text("Development deployments only. These accounts are separate from the offline demo.")
                     if reauthenticate { Text("Sign in to the same account again to confirm deletion. A refreshed session isn't enough.") }
                 }
                 Section("Development credentials") {
@@ -153,7 +149,11 @@ struct DeveloperSignInView: View {
         defer { password = ""; signingIn = false }
         let epoch = model.generation
         do {
-            guard ProcessInfo.processInfo.arguments.contains("--development-auth"), !model.isDemo else { throw ServiceFailure.notConfigured }
+            #if DEBUG
+            guard !model.isDemo else { throw ServiceFailure.notConfigured }
+            #else
+            throw ServiceFailure.notConfigured
+            #endif
             let authentication = try model.prepareLive()
             try await authentication.signInDevelopment(username: username, password: password, createAccount: !reauthenticate && createAccount, reauthenticate: reauthenticate)
             guard epoch == model.generation, model.service === authentication else { return }
@@ -206,6 +206,7 @@ struct MainTabsView: View {
         }
         .toolbarBackground(TakeTheme.surface, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
         .onChange(of: model.selectedTab) { _, _ in PlaybackCoordinator.shared.pause() }
     }
 }

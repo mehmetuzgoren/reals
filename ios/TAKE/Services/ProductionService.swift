@@ -63,10 +63,15 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     func signInDevelopment(username: String, password: String, createAccount: Bool, reauthenticate: Bool) async throws {
+        #if DEBUG
+        guard !ProcessInfo.processInfo.arguments.contains("--demo") else { throw ServiceFailure.notConfigured }
         let expectedUser = reauthenticate ? authentication.currentUID : nil
         if reauthenticate, expectedUser == nil { throw Self.unauthenticated }
         try await authentication.signInDevelopment(username: username, password: password, createAccount: createAccount, expectedUserID: expectedUser)
         try await bindNewSession()
+        #else
+        throw ServiceFailure.notConfigured
+        #endif
     }
 
     private func bindNewSession() async throws {
@@ -162,6 +167,10 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         try await query("takes:feed", ["roundId": roundId, "cursor": cursor, "limit": 8.0])
     }
 
+    func forYou(roundId: String, cursor: String?) async throws -> Page<OriginalSummary> {
+        try await query("takes:forYou", ["roundId": roundId, "cursor": cursor, "limit": 8.0])
+    }
+
     func detail(originalId: String) async throws -> OriginalSummary {
         try await query("takes:detail", ["originalId": originalId])
     }
@@ -170,23 +179,57 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         try await query("replies:list", ["originalId": originalId, "cursor": cursor, "limit": 50.0])
     }
 
+    func toggleLike(contentId: String, kind: ContentKind) async throws -> LikeResult {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
+        return try await mutation("likes:toggle", ["contentId": contentId, "kind": kind.rawValue])
+    }
+
+    func comments(contentId: String, kind: ContentKind, cursor: String?) async throws -> Page<CommentSummary> {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
+        return try await query("comments:list", ["contentId": contentId, "kind": kind.rawValue, "cursor": cursor, "limit": 50.0])
+    }
+
+    func createComment(contentId: String, kind: ContentKind, text: String) async throws -> CreateCommentResult {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
+        return try await mutation("comments:create", ["contentId": contentId, "kind": kind.rawValue, "text": text])
+    }
+
+    func deleteComment(commentId: String) async throws {
+        try await acknowledge("comments:delete", ["commentId": commentId])
+    }
+
+    func battle(battleId: String) async throws -> BattleState {
+        try await query("battles:get", ["battleId": battleId])
+    }
+
+    func vote(battleId: String, side: BattleSide) async throws -> BattleVoteResult {
+        try await mutation("battles:vote", ["battleId": battleId, "side": side.rawValue])
+    }
+
     func beginUpload(draft: PublicationDraft) async throws -> UploadIntent {
+        guard draft.kind == .original || draft.kind == .reply else { throw Self.invalidMedia }
         try await ensureAuthenticated()
         guard !draft.isDemo, let viewerID, draft.ownerId == viewerID, let clip = draft.clip,
-              !draft.id.isEmpty, draft.kind == .reply || draft.optionId != nil else {
+              !draft.id.isEmpty,
+              (draft.kind == .original && draft.optionId != nil) || (draft.kind == .reply && draft.optionId == nil) else {
             throw Self.invalidMedia
         }
         let epoch = sessionEpoch
-        try await validateClip(clip, maxBytes: 8 * 1_024 * 1_024, maxDuration: 15_000)
+        try await validateClip(clip, maxBytes: 8 * 1_024 * 1_024, minDuration: 3_000, maxDuration: 15_000)
         guard epoch == sessionEpoch else { throw CancellationError() }
-        let intent: UploadIntent = try await mutation("uploads:begin", [
+        var arguments: [String: ConvexEncodable?] = [
             "requestId": draft.id, "kind": draft.kind.rawValue, "roundId": draft.roundId,
             "optionId": draft.optionId, "originalId": draft.originalId
-        ])
+        ]
+        if draft.kind == .original { arguments["audience"] = draft.audience.rawValue }
+        let intent: UploadIntent = try await mutation("uploads:begin", arguments)
+        guard epoch == sessionEpoch else { throw CancellationError() }
         _ = try configuration.uploadURL(intent.uploadUrl, uploadId: intent.uploadId, asset: "video")
         guard !intent.uploadId.isEmpty, intent.expiresAt.isFinite,
               intent.expiresAt > serverNow, intent.maxBytes.isFinite, intent.maxBytes > 0,
-              intent.maxDurationMs.isFinite, intent.maxDurationMs > 0, intent.maxDurationMs <= 15_000 else {
+              intent.minDurationMs.isFinite, intent.minDurationMs >= 3_000,
+              intent.maxDurationMs.isFinite, intent.maxDurationMs <= 15_000,
+              intent.minDurationMs <= intent.maxDurationMs else {
             throw ServiceFailure(code: "UPLOAD_EXPIRED", message: "This upload is unavailable. Please try again.", retryable: true)
         }
         uploadIntents[intent.uploadId] = intent
@@ -201,8 +244,24 @@ final class ProductionService: TakeService, LiveAuthenticationService {
             throw ServiceFailure(code: "INVALID_UPLOAD", message: "Check this upload's status or start it again.", retryable: true)
         }
         let epoch = sessionEpoch
+        let transfer = PrivateUploadTransfer { value in
+            Task { @MainActor [weak self] in
+                guard let self, epoch == self.sessionEpoch else { return }
+                guard value > (self.uploadProgress[intent.uploadId] ?? 1) else { return }
+                self.uploadProgress[intent.uploadId] = value
+                progress(value)
+            }
+        }
+        transfers[intent.uploadId] = transfer
+        uploadProgress[intent.uploadId] = 0
+        defer {
+            if transfers[intent.uploadId] === transfer {
+                transfers[intent.uploadId] = nil
+                uploadProgress[intent.uploadId] = nil
+            }
+        }
         let maxBytes = min(intent.maxBytes, 8 * 1_024 * 1_024)
-        try await validateClip(clip, maxBytes: maxBytes, maxDuration: intent.maxDurationMs)
+        try await validateClip(clip, maxBytes: maxBytes, minDuration: intent.minDurationMs, maxDuration: intent.maxDurationMs)
         let destination = try configuration.uploadURL(intent.uploadUrl, uploadId: intent.uploadId, asset: "video")
         let token = try await authentication.freshAccessToken()
         guard epoch == sessionEpoch else { throw CancellationError() }
@@ -220,22 +279,10 @@ final class ProductionService: TakeService, LiveAuthenticationService {
             }
         }.value
         defer { try? FileManager.default.removeItem(at: snapshot) }
+        try await validateClip(RecordedClip(url: snapshot, durationMs: clip.durationMs, source: clip.source, createdAt: clip.createdAt),
+                               maxBytes: maxBytes, minDuration: intent.minDurationMs, maxDuration: intent.maxDurationMs)
         try Task.checkCancellation()
         guard epoch == sessionEpoch else { throw CancellationError() }
-        let transfer = PrivateUploadTransfer { value in
-            Task { @MainActor [weak self] in
-                guard let self, epoch == self.sessionEpoch else { return }
-                guard value > (self.uploadProgress[intent.uploadId] ?? 1) else { return }
-                self.uploadProgress[intent.uploadId] = value
-                progress(value)
-            }
-        }
-        transfers[intent.uploadId] = transfer
-        uploadProgress[intent.uploadId] = 0
-        defer {
-            transfers[intent.uploadId] = nil
-            uploadProgress[intent.uploadId] = nil
-        }
         var request = URLRequest(url: destination)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -277,6 +324,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     func playback(contentId: String, kind: ContentKind, asset: String) async throws -> PlaybackGrant {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
         guard asset == "video" || asset == "thumbnail" else { throw ServiceFailure.notFound }
         let grant: PlaybackGrant = try await action("media:createPlaybackGrant", ["contentId": contentId, "kind": kind.rawValue, "asset": asset])
         _ = try configuration.playbackURL(grant.url)
@@ -288,6 +336,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     func captions(contentId: String, kind: ContentKind) async throws -> CaptionResult {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
         let result: CaptionResult = try await query("captions:get", ["contentId": contentId, "kind": kind.rawValue])
         guard ["unavailable", "pending", "ready", "failed"].contains(result.status),
               result.status == "ready" || result.text == nil else { throw Self.invalidResponse }
@@ -406,6 +455,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     func deleteContent(id: String, kind: ContentKind) async throws {
+        guard kind == .original || kind == .reply else { throw ServiceFailure.notFound }
         try await acknowledge(kind == .original ? "takes:delete" : "replies:delete", ["id": id])
         invalidatePrivateAccess()
     }
@@ -542,9 +592,9 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         let _: IgnoredResponse = try await mutation(name, args)
     }
 
-    private func validateClip(_ clip: RecordedClip, maxBytes: Double, maxDuration: Double) async throws {
+    private func validateClip(_ clip: RecordedClip, maxBytes: Double, minDuration: Double, maxDuration: Double) async throws {
         guard clip.source == .camera, clip.url.isFileURL, clip.url.pathExtension.lowercased() == "mp4",
-              clip.durationMs.isFinite, clip.durationMs > 0, clip.durationMs <= maxDuration,
+              clip.durationMs.isFinite, clip.durationMs >= minDuration, clip.durationMs <= maxDuration,
               !clip.url.resolvingSymlinksInPath().path.hasPrefix(Bundle.main.bundleURL.resolvingSymlinksInPath().path + "/") else {
             throw Self.invalidMedia
         }
@@ -557,7 +607,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         let videos = try await asset.loadTracks(withMediaType: .video)
         let audio = try await asset.loadTracks(withMediaType: .audio)
         let actualDuration = CMTimeGetSeconds(duration) * 1_000
-        guard actualDuration.isFinite, actualDuration > 0, actualDuration <= maxDuration,
+        guard actualDuration.isFinite, actualDuration >= minDuration, actualDuration <= maxDuration,
               !videos.isEmpty, !audio.isEmpty else { throw Self.invalidMedia }
     }
 
@@ -605,7 +655,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     nonisolated private static var invalidMedia: ServiceFailure {
-        ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require an in-app MP4 recording with audio, up to 15 seconds and 8 MiB. Demo clips can't be uploaded.", retryable: false)
+        ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require an in-app MP4 recording with audio, between 3 and 15 seconds and up to 8 MiB. Demo clips can't be uploaded.", retryable: false)
     }
 
     private static var invalidResponse: ServiceFailure {
@@ -794,7 +844,7 @@ private final class PrivateUploadTransfer: NSObject, URLSessionDataDelegate, @un
             case 409:
                 failure = ServiceFailure(code: "CONFLICT", message: "This upload changed. Check its publication status before retrying.", retryable: true)
             case 413, 415, 422:
-                failure = ServiceFailure(code: "INVALID_MEDIA", message: "This recording couldn't be accepted. Retake a video up to 15 seconds and 8 MiB.", retryable: false)
+                failure = ServiceFailure(code: "INVALID_MEDIA", message: "This recording couldn't be accepted. Retake a video between 3 and 15 seconds and up to 8 MiB.", retryable: false)
             default:
                 failure = ServiceFailure(code: "UPLOAD_FAILED", message: "Couldn't upload this recording. Please try again.", retryable: status == 0 || status == 408 || status == 429 || status >= 500)
             }

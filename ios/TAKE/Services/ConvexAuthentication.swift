@@ -142,7 +142,11 @@ final class ConvexAuthentication: NSObject, ConvexMobile.AuthProvider, ASWebAuth
     }
 
     func signInDevelopment(username: String, password: String, createAccount: Bool, expectedUserID: String? = nil) async throws {
-        guard ProcessInfo.processInfo.arguments.contains("--development-auth"), !ProcessInfo.processInfo.arguments.contains("--demo") else { throw ServiceFailure.notConfigured }
+        #if DEBUG
+        guard !ProcessInfo.processInfo.arguments.contains("--demo") else { throw ServiceFailure.notConfigured }
+        #else
+        throw ServiceFailure.notConfigured
+        #endif
         let attempt = UUID()
         cancelBrowser(); signInID = attempt
         defer { if signInID == attempt { signInID = nil } }
