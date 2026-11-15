@@ -36,8 +36,9 @@ struct ConvexSessionStore {
         lookup[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         let status = SecItemCopyMatching(lookup as CFDictionary, &result)
+        Self.report(status, operation: "read")
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw Self.unavailable }
+        guard status == errSecSuccess, let data = result as? Data else { throw Self.unavailable(status) }
         guard let value = try? JSONDecoder().decode(ConvexStoredSession.self, from: data), value.tokens.isValid,
               value.method == "apple" || value.method == "usernamePassword" else {
             try clear()
@@ -49,21 +50,33 @@ struct ConvexSessionStore {
     func save(_ value: ConvexStoredSession) throws {
         let data = try JSONEncoder().encode(value)
         let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        Self.report(status, operation: "update")
         if status == errSecItemNotFound {
             var item = query
             item[kSecValueData as String] = data
             item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { throw Self.unavailable }
-        } else if status != errSecSuccess { throw Self.unavailable }
+            let added = SecItemAdd(item as CFDictionary, nil)
+            Self.report(added, operation: "add")
+            guard added == errSecSuccess else { throw Self.unavailable(added) }
+        } else if status != errSecSuccess { throw Self.unavailable(status) }
     }
 
     func clear() throws {
         let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else { throw Self.unavailable }
+        Self.report(status, operation: "delete")
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw Self.unavailable(status) }
     }
 
-    private static var unavailable: ServiceFailure {
-        ServiceFailure(code: "AUTH_STORAGE", message: "Secure sign-in storage isn't available. Unlock your device and try again.", retryable: true)
+    private static func report(_ status: OSStatus, operation: String) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TAKE_KEYCHAIN_DIAGNOSTICS"] == "1" {
+            print("TAKE Keychain \(operation) OSStatus=\(status)")
+        }
+        #endif
+    }
+
+    private static func unavailable(_ status: OSStatus) -> ServiceFailure {
+        ServiceFailure(code: "AUTH_STORAGE_\(status)", message: "Secure sign-in storage isn't available. Unlock your device and try again.", retryable: true)
     }
 }
 

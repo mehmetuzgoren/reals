@@ -59,6 +59,9 @@
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <EnvironmentVariables>
+         <EnvironmentVariable key="TAKE_KEYCHAIN_DIAGNOSTICS" value="1" isEnabled="YES"/>
+      </EnvironmentVariables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

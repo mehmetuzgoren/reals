@@ -26,6 +26,8 @@ Set `TAKE_TEST_DESTINATION='platform=iOS Simulator,id=<UDID>'` to select another
 
 SPM pins ConvexMobile exactly **0.8.2**. No Firebase or payment SDK is linked.
 
+The simulator scripts use ad-hoc Sign to Run Locally and simulator-only Keychain entitlements; they require no Apple account, certificate or provisioning profile. XCTest enables diagnostics containing only Keychain operation names and numeric OSStatus values, never credentials or account values. Physical-device signing remains separate.
+
 ## Configure live services
 
 The unconfigured app keeps live sign-in unavailable and the complete demo accessible. Copy `Config/Public.example.xcconfig` to the ignored `Config/Public.local.xcconfig` and set `CONVEX_URL` and the distinct `CONVEX_SITE_URL`. Both must be HTTPS origins without a path, credentials, query or fragment; the example uses Xcode's `$()` expansion to avoid interpreting `//` as an xcconfig comment. Missing or placeholder values fail closed. Set an appropriate bundle identifier, Apple team and provisioning profile. Apple provider credentials belong only in the Convex deployment, never the app, git or logs.
