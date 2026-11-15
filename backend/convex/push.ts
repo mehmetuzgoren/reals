@@ -32,7 +32,7 @@ export const deliver = internalAction({ args: { jobId: v.id("notificationJobs") 
       if (!finished.validLease) return;
     } catch (error) {
       const code = (error as { code?: string }).code;
-      if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+      if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token" || code === "messaging/invalid-argument") {
         const finished = await ctx.runMutation(internal.notifications.finishAttempt, { ...args, deviceId: device.id, lease, token: target.token, outcome: "invalid" });
         if (!finished.validLease) return;
         if (finished.retry) unavailable = true;

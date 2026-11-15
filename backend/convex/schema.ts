@@ -23,6 +23,7 @@ export default defineSchema({
     .index("by_pair", ["blockerId", "blockedId"]).index("by_blocker", ["blockerId"]).index("by_blocked", ["blockedId"]),
   rounds: defineTable({
     planKey: v.string(), question: v.string(), options: v.array(option), plannedAt: v.number(),
+    windowStartsAt: v.number(), windowEndsAt: v.number(),
     opensAt: v.union(v.number(), v.null()), closesAt: v.union(v.number(), v.null()),
   }).index("by_plan", ["planKey"]).index("by_planned", ["plannedAt"]),
   currentRound: defineTable({ key: v.literal("global"), roundId: v.id("rounds") }).index("by_key", ["key"]),

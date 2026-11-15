@@ -6,6 +6,7 @@ import { viewer } from "./lib/auth";
 import { currentRound, friends, receipt } from "./lib/access";
 import { friendEdges } from "./friends";
 import { originalDTO, publicProfile, receiptDTO, roundDTO } from "./lib/dto";
+import { fail } from "./lib/errors";
 
 export const today = query({ args: {}, handler: async ctx => {
   const user = await viewer(ctx);
@@ -24,7 +25,8 @@ export const today = query({ args: {}, handler: async ctx => {
     canViewFriends: !!success, ownOriginal: own && !own.deleted ? await originalDTO(ctx, user, own) : null, friendPresence,
   };
 } });
-export const plan = internalMutation({ args: { planKey: v.string(), plannedAt: v.number(), question: v.string(), options: v.array(option) }, handler: async (ctx, args) => {
+export const plan = internalMutation({ args: { planKey: v.string(), plannedAt: v.number(), windowStartsAt: v.number(), windowEndsAt: v.number(), question: v.string(), options: v.array(option) }, handler: async (ctx, args) => {
+  if (![args.plannedAt, args.windowStartsAt, args.windowEndsAt].every(Number.isFinite) || args.plannedAt < args.windowStartsAt || args.plannedAt >= args.windowEndsAt) fail("INVALID_ARGUMENT", "Invalid round window");
   const existing = await ctx.db.query("rounds").withIndex("by_plan", q => q.eq("planKey", args.planKey)).unique();
   if (existing) return existing._id;
   const id = await ctx.db.insert("rounds", { ...args, opensAt: null, closesAt: null });
@@ -32,12 +34,12 @@ export const plan = internalMutation({ args: { planKey: v.string(), plannedAt: v
   return id;
 } });
 export const open = internalMutation({ args: { id: v.id("rounds") }, handler: async (ctx, args) => {
+  const openedAt = Date.now();
   const round = await ctx.db.get(args.id);
-  if (!round || round.opensAt !== null || round.plannedAt > Date.now()) return false;
+  if (!round || round.opensAt !== null || round.plannedAt > openedAt || !Number.isFinite(round.windowStartsAt) || !Number.isFinite(round.windowEndsAt) || openedAt < round.windowStartsAt || openedAt >= round.windowEndsAt) return false;
   const pointer = await ctx.db.query("currentRound").withIndex("by_key", q => q.eq("key", "global")).unique();
   const previous = pointer ? await ctx.db.get(pointer.roundId) : null;
   if (previous && previous.plannedAt >= round.plannedAt) return false;
-  const openedAt = Date.now();
   if (previous) await ctx.db.patch(previous._id, { closesAt: openedAt });
   await ctx.db.patch(round._id, { opensAt: openedAt });
   if (pointer) await ctx.db.patch(pointer._id, { roundId: round._id });

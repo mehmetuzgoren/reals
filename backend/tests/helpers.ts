@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import schema from "../convex/schema";
 import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { dailyPlans } from "../convex/lib/schedule";
 
 export const modules = import.meta.glob("../convex/**/*.ts");
 export function setup() {
@@ -31,8 +32,9 @@ export async function user(t: Test, name: string) {
   return { client, profile };
 }
 export async function round(t: Test, key = "test-round") {
+  const { windowStartsAt, windowEndsAt } = dailyPlans(Date.now(), "America/Los_Angeles", 10, 20, () => 0)[0];
   const id = await t.mutation(internal.rounds.plan, {
-    planKey: key, plannedAt: Date.now(), question: "Do you like pineapple on pizza?",
+    planKey: key, plannedAt: Date.now(), windowStartsAt, windowEndsAt, question: "Do you like pineapple on pizza?",
     options: [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }, { id: "depends", label: "Depends" }],
   });
   await t.mutation(internal.rounds.open, { id });

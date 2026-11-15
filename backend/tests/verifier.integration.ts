@@ -64,6 +64,8 @@ afterAll(async () => {
 function liveBackend() {
   const t = setup();
   vi.useRealTimers();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-15T20:00:00Z"));
   vi.mocked(fetch).mockImplementation((input, init) => {
     const url = new URL(String(input));
     if (url.origin !== "https://verifier.test" || !["/verify", "/verify-avatar"].includes(url.pathname)) throw new Error("Unexpected integration-test request");

@@ -2,12 +2,22 @@ import { v } from "convex/values";
 import { internalQuery, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { canViewReply, currentRound } from "./lib/access";
+import type { QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+
+async function devicePage(ctx: QueryCtx, job: Doc<"notificationJobs">) {
+  return job.recipientId
+    ? { page: await ctx.db.query("deviceTokens").withIndex("by_user", q => q.eq("userId", job.recipientId!)).collect(), isDone: true, continueCursor: "" }
+    : await ctx.db.query("deviceTokens").paginate({ cursor: job.cursor, numItems: 50 });
+}
 
 export const claim = internalMutation({ args: { jobId: v.id("notificationJobs"), lease: v.string() }, handler: async (ctx, args) => {
   const job = await ctx.db.get(args.jobId);
   if (!job || job.state === "sent" || (job.leaseUntil ?? 0) > Date.now()) return false;
   if (job.attempts >= 5) {
-    await ctx.db.patch(job._id, { state: "unavailable", leaseUntil: 0 });
+    const page = await devicePage(ctx, job);
+    await ctx.db.patch(job._id, { state: page.isDone ? "unavailable" : "pending", cursor: page.isDone ? job.cursor : page.continueCursor, attempts: page.isDone ? job.attempts : 0, leaseUntil: 0 });
+    if (!page.isDone) await ctx.scheduler.runAfter(0, internal.push.deliver, { jobId: job._id });
     return false;
   }
   await ctx.db.patch(job._id, { state: "pending", attempts: job.attempts + 1, lease: args.lease, leaseUntil: Date.now() + 300000 });
@@ -18,9 +28,7 @@ export const batch = internalQuery({ args: { jobId: v.id("notificationJobs") }, 
   const job = await ctx.db.get(args.jobId);
   if (!job || job.state === "sent") return null;
   if ((await currentRound(ctx))?._id !== job.roundId) return { items: [], nextCursor: null, done: true, kind: job.kind, roundId: job.roundId, contentId: null };
-  const page = job.recipientId
-    ? { page: await ctx.db.query("deviceTokens").withIndex("by_user", q => q.eq("userId", job.recipientId!)).collect(), isDone: true, continueCursor: "" }
-    : await ctx.db.query("deviceTokens").paginate({ cursor: job.cursor, numItems: 50 });
+  const page = await devicePage(ctx, job);
   const items = [];
   for (const device of page.page) {
     const user = await ctx.db.get(device.userId);
@@ -69,7 +77,7 @@ export const progress = internalMutation({ args: { jobId: v.id("notificationJobs
   if (!job || job.state !== "pending" || job.lease !== args.lease || (job.leaseUntil ?? 0) <= Date.now()) return;
   if (args.unavailable) {
     await ctx.db.patch(job._id, { state: "unavailable", leaseUntil: 0 });
-    if (job.attempts < 5) await ctx.scheduler.runAfter(Math.min(3600000, 60000 * 2 ** job.attempts), internal.push.deliver, { jobId: job._id });
+    await ctx.scheduler.runAfter(job.attempts >= 5 ? 0 : Math.min(3600000, 60000 * 2 ** job.attempts), internal.push.deliver, { jobId: job._id });
     return;
   }
   await ctx.db.patch(job._id, { cursor: args.nextCursor, state: args.done ? "sent" : "pending", attempts: 0, leaseUntil: 0 });
