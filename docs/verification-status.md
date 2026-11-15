@@ -9,7 +9,7 @@ The development backend is **live**, but no hosted verifier exists. The eight-sc
 | Backend live v3 | [PR #3](https://github.com/mehmetuzgoren/reals/pull/3), `a48095d8730507a63bc99f033ad69d799613d579`. Development reports deployment to `first-mandrill-982` with development-only password sign-in, Apple placeholders, site origin and America/Los_Angeles 10–20 round settings. This verification independently reached its hosted routes, not an environment dump. |
 | Native Convex Auth source | [PR #2](https://github.com/mehmetuzgoren/reals/pull/2), `027d48899d0cd0726a9365e3039858fb816a84e0`. Auth/APNs request names and nonce/OAuth-state distinction were source-read. No build or phone result from this auth head is claimed. |
 | Last installed visual artifact | Native `566d250882aa0ee55775efc2753bb3a9eeacb239`, build `01M7GKCYFDRXT36B8TEGNYAXGK`, managed version `3eb64da0-defc-4e79-a01b-b04065151b92`. Six monochrome states independently captured; this predates Convex-only auth and the new eight-screen mocks. |
-| Docs/tooling | [PR #1](https://github.com/mehmetuzgoren/reals/pull/1), live-boundary probe plus 22 tooling tests. Older read-only tooling review at `cdd871d` and narrow review at `f2e885c` do not review this new delta. |
+| Docs/tooling | [PR #1](https://github.com/mehmetuzgoren/reals/pull/1), live-boundary probe plus 25 tooling tests. Older read-only tooling review at `cdd871d` and narrow review at `f2e885c` do not review this new delta. |
 
 ## Independently executed hosted boundary probe
 
@@ -17,7 +17,7 @@ The development backend is **live**, but no hosted verifier exists. The eight-sc
 
 It checked unauthenticated session/content denial, the current APNs registration argument shape reaching its auth guard, placeholder Apple start/completion rejection, eight malformed relay cases, fixed code/error destinations with no-store/no-referrer, the Apple **POST** callback route and invalid-grant GET/HEAD denial. No account, password session, published fixture, valid video or real Apple identity was used.
 
-The initial run exposed a probe mismatch: media denial is a strict JSON `failure` envelope, not only plain text. It was reconciled against the actual backend `lib/http.ts` and live response, with extra-field/wrong-code/revealing-message regressions. All 19 checks then passed. GET `/oauth/apple/callback` returns 404 because the registered callback is POST; an empty POST returns 400. This is route presence, not provider success.
+The initial run exposed a probe mismatch: media denial is a strict JSON `failure` envelope, not only plain text. It was reconciled against the actual backend `lib/http.ts` and live response, with extra-field/wrong-code/revealing-message regressions. The probe now also rejects unexpected API error text and revealing relay bodies; it accepts only the exact public guard messages and reviewed Convex framework wrappers. All 19 checks passed after those changes. GET `/oauth/apple/callback` returns 404 because the registered callback is POST; an empty POST returns 400. This is route presence, not provider success.
 
 The full **25-assertion authenticated privacy/media probe remains unrun** on this deployment. It needs fresh dedicated Convex Auth fixture sessions plus published private media; normal publication cannot succeed before the verifier is hosted. A green boundary probe does not clear this gate.
 
@@ -27,7 +27,7 @@ At current backend `a48095d`, the source owner reports 75 backend tests, 3 actua
 
 This thread previously executed backend `fbb0033da8108b2e9b4b51d77eb01bb19b3548fb`: typecheck +43 tests and 3 actual authenticated HTTP-worker/FFmpeg integrations, Node 24.22.3 / FFmpeg 6.1.1. Worker 61 passed at `468c817` and its tree was unchanged at `fbb0033`. These older identity-based snapshots do not establish current Convex Auth or v4 correctness.
 
-Current tooling: **22/22** local tests, with 8 new boundary/denial-envelope regressions; the fake transport checks tooling only. The existing 25-assertion mock privacy transport and 189 historical DTO mutations are not hosted product results. CI runs tooling without secrets; backend CI skips this docs-only checkout. Current-push CI/review is recorded in the PR, not assumed from earlier green runs.
+Current tooling: **25/25** local tests, with 11 new boundary/denial-envelope regressions; the fake transport checks tooling only. The existing 25-assertion mock privacy transport and 189 historical DTO mutations are not hosted product results. CI runs tooling without secrets; backend CI skips this docs-only checkout. Current-push CI/review is recorded in the PR, not assumed from earlier green runs.
 
 ## Cloud-iPhone evidence and next pass
 

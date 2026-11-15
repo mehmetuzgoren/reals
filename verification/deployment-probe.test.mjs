@@ -16,7 +16,9 @@ function transport(change = response => response) {
       const code = path.includes('SignInWithApple') ? 'PROCESSING_UNAVAILABLE' : 'UNAUTHENTICATED';
       response = Response.json(path === 'auth:isAuthenticated'
         ? { status: 'success', value: false }
-        : { status: 'error', errorData: { code, message: 'Unavailable', retryable: false } });
+        : { status: 'error', errorData: {
+          code, message: path.includes('SignInWithApple') ? 'Apple sign-in is not configured' : 'Sign in with Apple to continue', retryable: false,
+        } });
     } else if (url.pathname === '/auth/ios') {
       const state = url.searchParams.get('state');
       const code = url.searchParams.get('convexAuthCode');
@@ -27,7 +29,7 @@ function transport(change = response => response) {
         && (code ? /^[A-Za-z0-9_-]{43}$/.test(code) : error === 'access_denied');
       const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
       if (valid) headers.Location = `take://auth/convex?state=${state}&${code ? 'code' : 'error'}=${code ?? error}`;
-      response = new Response(null, { status: valid ? 302 : 400, headers });
+      response = new Response(valid ? null : 'Invalid authentication callback', { status: valid ? 302 : 400, headers });
     } else if (url.pathname === '/oauth/apple/callback') {
       assert.equal(options.method, 'POST');
       response = new Response(null, { status: 400 });
@@ -117,4 +119,41 @@ test('actual structured HTTP denial accepts only the exact generic failure envel
     { error: 'Not found' },
   ]) assert.throws(() => validateMediaDenial(JSON.stringify(body)));
   assert.throws(() => validateMediaDenial('private diagnostic'));
+});
+
+test('API guard messages and framework wrappers cannot hide private diagnostics', async () => {
+  for (const field of ['message', 'errorMessage']) {
+    const rows = await runDeploymentProbe(manifest, transport(async (response, url) => {
+      if (url.origin !== manifest.convexUrl) return response;
+      const data = await response.json();
+      if (!data.errorData) return Response.json(data);
+      if (field === 'message') data.errorData.message = 'Private profile and callback data';
+      else data.errorMessage = 'Private profile and callback data';
+      return Response.json(data);
+    }));
+    assert.equal(rows.filter(row => !row.passed).length, 5);
+  }
+});
+
+test('only the reviewed public framework stack is accepted', async () => {
+  for (const extra of ['', '\nPrivate callback data', '\n    at privateUser (../convex/viewer.ts:1:1)']) {
+    const rows = await runDeploymentProbe(manifest, transport(async (response, url, options) => {
+      if (url.origin !== manifest.convexUrl || JSON.parse(options.body).path !== 'viewer:session') return response;
+      const data = await response.json();
+      data.errorMessage = `[Request ID: ${'a'.repeat(16)}] Server Error\nUncaught ConvexError: ${JSON.stringify(data.errorData)}\n`
+        + '    at fail (../../convex/lib/errors.ts:1:1)\n'
+        + '    at identity (../../convex/lib/auth.ts:1:1)\n'
+        + '    at async authenticatedUser (../../convex/lib/auth.ts:1:1)\n'
+        + '    at async optionalViewer (../../convex/lib/auth.ts:1:1)\n'
+        + '    at async handler (../convex/viewer.ts:1:1)\n' + extra;
+      return Response.json(data);
+    }));
+    assert.equal(rows.filter(row => !row.passed).length, extra ? 1 : 0);
+  }
+});
+
+test('both rejected and successful relay response bodies must be fixed and nonrevealing', async () => {
+  const rows = await runDeploymentProbe(manifest, transport((response, url) => url.pathname === '/auth/ios'
+    ? new Response('Private callback data', { status: response.status, headers: response.headers }) : response));
+  assert.equal(rows.filter(row => !row.passed).length, 10);
 });

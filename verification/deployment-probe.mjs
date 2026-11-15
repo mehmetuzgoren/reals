@@ -51,8 +51,30 @@ export async function runDeploymentProbe(manifest, fetcher = fetch, report = () 
     }
     check(data.status === 'error' && data.errorData?.code === expectedCode);
     check(Object.keys(data.errorData).length === 3);
-    check(typeof data.errorData.message === 'string' && data.errorData.retryable === false);
-    check(data.errorMessage === undefined || typeof data.errorMessage === 'string');
+    check(data.errorData.message === (expectedCode === 'UNAUTHENTICATED'
+      ? 'Sign in with Apple to continue' : 'Apple sign-in is not configured'));
+    check(data.errorData.retryable === false);
+    if (data.errorMessage !== undefined) {
+      const json = JSON.stringify(data.errorData);
+      if ([data.errorData.message, json, `Uncaught ConvexError: ${json}`].includes(data.errorMessage)) return;
+      check(typeof data.errorMessage === 'string');
+      const lines = data.errorMessage.trimEnd().split('\n');
+      check(/^\[Request ID: [a-f0-9]{16}\] Server Error$/.test(lines[0]));
+      check(lines[1] === `Uncaught ConvexError: ${json}`);
+      const frames = expectedCode === 'PROCESSING_UNAVAILABLE'
+        ? [['fail', '../../convex/lib/errors.ts'], ['requireApple', '../convex/auth.ts'], ['handler', '../convex/auth.ts']]
+        : [
+          ['fail', '../../convex/lib/errors.ts'], ['identity', '../../convex/lib/auth.ts'],
+          ['authenticatedUser', '../../convex/lib/auth.ts'], ['optionalViewer', '../../convex/lib/auth.ts'],
+          ...(path === 'viewer:session' ? [] : [['viewer', '../../convex/lib/auth.ts']]),
+          ['handler', `../convex/${path.split(':')[0]}.ts`],
+        ];
+      check(lines.length === frames.length + 2);
+      for (const [index, [name, source]] of frames.entries()) {
+        const frame = /^ {4}at (?:async )?([A-Za-z]+) \(([^:]+):\d+:\d+\)$/.exec(lines[index + 2]);
+        check(frame && frame[1] === name && frame[2] === source);
+      }
+    }
   };
   await step('auth.unauthenticated-session', () => api('query', 'auth:isAuthenticated', {}));
   for (const path of ['viewer:session', 'rounds:today']) {
@@ -97,7 +119,7 @@ export async function runDeploymentProbe(manifest, fetcher = fetch, report = () 
         check([...target.searchParams].length === 2);
         check(target.searchParams.get('state') === state && target.searchParams.get(outcome[0]) === outcome[1]);
       }
-      await response.body?.cancel();
+      check(await response.text() === (outcome ? '' : 'Invalid authentication callback'));
     });
   }
   await step('apple.callback-post-route-present', async () => {

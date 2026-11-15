@@ -10,7 +10,7 @@ node verification/check-docs.mjs
 node verification/deployment-probe.mjs verification/deployment.example.json
 ```
 
-The first commands run 22 local tooling tests and Markdown links without secrets. The last command makes 19 real unauthenticated boundary checks against the live bootstrap deployment: session/content auth guards, the APNs argument shape reaching its auth guard, unavailable Apple start/completion, relay malformed-input/fixed-destination behavior, the POST callback route and invalid-media GET/HEAD denial. It creates no account, media or fixture. All requests refuse redirects.
+The first commands run 25 local tooling tests and Markdown links without secrets. The last command makes 19 real unauthenticated boundary checks against the live bootstrap deployment: session/content auth guards, the APNs argument shape reaching its auth guard, unavailable Apple start/completion, relay malformed-input/fixed-destination behavior, the POST callback route and invalid-media GET/HEAD denial. It creates no account, media or fixture. All requests refuse redirects.
 
 The Apple callback uses POST; its empty POST returns 400. GET 404 does not mean the POST route is absent. A missing POST callback or GET relay after deployment is a failure. The probe deliberately expects Apple bootstrap placeholders; once real Apple credentials are installed, replace this unavailable-Apple expectation with a real provider acceptance lane, not a fake pass.
 
