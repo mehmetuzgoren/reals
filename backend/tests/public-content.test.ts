@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { orderKey } from "../convex/lib/pagination";
-import { setup, user, round, begin, send, publish, matrix, playback, path, type Actor } from "./helpers";
+import { setup, user, round, begin, send, publish, matrix, playback, path, seedLegacyThumbnail, type Actor } from "./helpers";
+import * as verification from "../convex/lib/verification";
+import { shortVideo } from "./media-fixtures";
+
+const actualVideoCheck = verification.verifyVideo;
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -183,6 +187,7 @@ describe("v4 audience and public authorization", () => {
 
   it.each(["viewer", "author"] as const)("revokes public reads and existing HTTP grants for a block initiated by %s", async blocker => {
     const w = await publicWorld();
+    await seedLegacyThumbnail(w.t, w.original.originalId);
     const grant = await playback(w.observer.client, w.original.originalId, "original");
     const thumbnail = await playback(w.observer.client, w.original.originalId, "original", "thumbnail");
     const a = blocker === "viewer" ? w.observer : w.owner;
@@ -224,19 +229,17 @@ describe("v4 audience and public authorization", () => {
     const w = await publicWorld();
     const intent = await begin(w.responder.client, w.roundId, w.original.originalId);
     await send(w.responder.client, intent);
-    const verifier = vi.mocked(fetch).getMockImplementation()!;
-    vi.mocked(fetch).mockImplementationOnce(async (input, init) => {
+    vi.mocked(verification.verifyVideo).mockImplementationOnce(async (bytes, hash) => {
       await w.owner.client.mutation(api.blocks.set, { userId: w.responder.profile.id, blocked: true });
-      return verifier(input, init);
+      return actualVideoCheck(bytes, hash);
     });
     expect(await w.responder.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", replyId: null, failure: { code: "NOT_FOUND" } });
     expect(await w.observer.client.query(api.takes.detail, { originalId: w.original.originalId })).toMatchObject({ visibleReplyCount: 0 });
   });
 
-  it("rejects below-minimum trusted verifier output without a successful receipt", async () => {
+  it("rejects below-minimum stored video bytes without a successful receipt", async () => {
     const t = setup(); const owner = await user(t, "owner"); const roundId = await round(t);
-    const intent = await begin(owner.client, roundId); await send(owner.client, intent);
-    vi.mocked(fetch).mockImplementationOnce(async (_input, init) => Response.json({ sha256: new Headers(init?.headers).get("X-Content-SHA256"), durationMs: 2999.99, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac" }));
+    const intent = await begin(owner.client, roundId); await send(owner.client, intent, shortVideo);
     expect(await owner.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", receipt: null, failure: { code: "INVALID_MEDIA", retryable: false } });
     expect(await owner.client.query(api.rounds.today, {})).toMatchObject({ canViewFriends: false, viewerReceipt: null, ownOriginal: null });
   });

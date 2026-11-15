@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConvexError } from "convex/values";
 import { api, internal } from "../convex/_generated/api";
 import { setup, user, round, begin, send, publish, matrix } from "./helpers";
+import * as verification from "../convex/lib/verification";
+import { shortVideo, overlongVideo } from "./media-fixtures";
+
+const actualVideoCheck = verification.verifyVideo;
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
@@ -14,7 +19,7 @@ describe("trusted publication transactions", () => {
     await expect(alex.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).rejects.toThrow("INVALID_MEDIA");
     expect((await send(alex.client, intent)).status).toBe(200);
     expect((await alex.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
-    vi.mocked(fetch).mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    vi.mocked(verification.verifyVideo).mockRejectedValueOnce(new ConvexError({ code: "PROCESSING_UNAVAILABLE", message: "Temporary processing failure", retryable: true }));
     const failed = await alex.client.action(api.uploads.finalize, { uploadId: intent.uploadId });
     expect(failed).toMatchObject({ state: "failed", failure: { code: "PROCESSING_UNAVAILABLE", retryable: true }, receipt: null });
     expect((await alex.client.query(api.rounds.today, {})).canViewFriends).toBe(false);
@@ -25,27 +30,26 @@ describe("trusted publication transactions", () => {
     const blair = await user(t, "blair");
     const invalid = await begin(blair.client, id);
     await send(blair.client, invalid);
-    vi.mocked(fetch).mockResolvedValueOnce(new Response("invalid", { status: 422 }));
+    vi.mocked(verification.verifyVideo).mockRejectedValueOnce(new ConvexError({ code: "INVALID_MEDIA", message: "Invalid media", retryable: false }));
     expect(await blair.client.action(api.uploads.finalize, { uploadId: invalid.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA", retryable: false } });
     expect((await blair.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
   });
 
-  it("fails closed without a verifier and rejects forged duration/hash metadata", async () => {
+  it("rejects stored hash mismatches and actual short or overlong sample tables", async () => {
     const t = setup();
     const alex = await user(t, "alex");
     const id = await round(t);
     const intent = await begin(alex.client, id);
     await send(alex.client, intent);
-    vi.stubEnv("MEDIA_VERIFIER_SECRET", "");
-    expect(await alex.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", failure: { code: "PROCESSING_UNAVAILABLE" } });
-    vi.stubEnv("MEDIA_VERIFIER_SECRET", "test-only-verifier-secret-not-a-credential");
-    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ sha256: "forged", durationMs: 1, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac" }));
+    await t.run(ctx => ctx.db.patch(intent.uploadId, { sha256: "forged" }));
     expect(await alex.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA" } });
     expect((await alex.client.query(api.rounds.today, {})).canViewFriends).toBe(false);
-    const second = await begin(alex.client, id);
-    await send(alex.client, second);
-    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => Response.json({ sha256: new Headers(init?.headers).get("X-Content-SHA256"), durationMs: 15000.001, width: 360, height: 640, videoCodec: "h264", audioCodec: "aac" }));
-    expect(await alex.client.action(api.uploads.finalize, { uploadId: second.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA" } });
+    for (const bytes of [shortVideo, overlongVideo]) {
+      const second = await begin(alex.client, id);
+      await send(alex.client, second, bytes);
+      expect(await alex.client.action(api.uploads.finalize, { uploadId: second.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA" } });
+      expect((await alex.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
+    }
   });
 
   it("binds owner-authenticated bytes once, not a client-chosen storage ID; cancels and expires safely", async () => {
@@ -92,17 +96,16 @@ describe("trusted publication transactions", () => {
     const m = await matrix(t);
     const intent = await begin(m.blair.client, m.roundId, m.original.originalId);
     await send(m.blair.client, intent);
-    const defaultVerifier = vi.mocked(fetch).getMockImplementation()!;
-    vi.mocked(fetch).mockImplementationOnce(async (input, init) => {
+    vi.mocked(verification.verifyVideo).mockImplementationOnce(async (bytes, hash) => {
       await m.alex.client.mutation(api.friends.remove, { userId: m.blair.profile.id });
-      return defaultVerifier(input, init);
+      return actualVideoCheck(bytes, hash);
     });
     expect(await m.blair.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", failure: { code: "NOT_FOUND" }, receipt: null });
     const locked = await begin(m.locked.client, m.roundId);
     await send(m.locked.client, locked);
-    vi.mocked(fetch).mockImplementationOnce(async (input, init) => {
+    vi.mocked(verification.verifyVideo).mockImplementationOnce(async (bytes, hash) => {
       vi.setSystemTime(Date.now() + 1000); await round(t, "successor");
-      return defaultVerifier(input, init);
+      return actualVideoCheck(bytes, hash);
     });
     expect(await m.locked.client.action(api.uploads.finalize, { uploadId: locked.uploadId })).toMatchObject({ state: "failed", failure: { code: "ROUND_CLOSED" } });
     expect((await m.locked.client.query(api.rounds.today, {})).canViewFriends).toBe(false);
