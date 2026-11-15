@@ -20,7 +20,7 @@ On the native checkout, open `ios/TAKE.xcodeproj`, select the shared `TAKE` sche
 
 Only server-confirmed original publication unlocks the same round. Failed uploads, previews and replies do not unlock it. Deleting an original preserves its receipt and one-original limit. The main feeds contain originals, not replies. Friends-audience replies keep the parent-first intersection rule: posted Casey sees Blair's reply on Alex; posted Dana, friends only with Alex, does not.
 
-The new public audience does not remove same-round publication or block checks. [Privacy rules](docs/security.md) distinguish the current v3 backend from accepted v4 requirements.
+The new public audience does not remove same-round publication or block checks. [Privacy rules](docs/security.md) distinguish the current v3 backend from the [published v4 wire contract](docs/wire-v4.md), whose implementation is still pending.
 
 ## Run the verification tools
 

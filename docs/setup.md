@@ -78,7 +78,7 @@ Access tokens default to 60 seconds; refresh securely through Convex Auth and re
 
 The verifier is **not hosted**. Live publication cannot create a receipt without it. `MEDIA_VERIFIER_ORIGIN` must eventually be the worker's HTTPS origin; `MEDIA_VERIFIER_SECRET` must match its server-only `VERIFY_SHARED_SECRET` (at least 32 random characters). Do not set a pretend worker URL or accept client metadata as verification.
 
-The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and ≤15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. V4 adds `minDurationMs: 3000`; it is pending the backend's published exact shapes, not yet proved by the live v3 deployment.
+The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and ≤15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. The [published v4 contract](wire-v4.md) adds `minDurationMs: 3000`; its implementation/ready head is pending, not proved by the live v3 deployment.
 
 The worker uses actual stored bytes plus `X-Content-SHA256` at authenticated `POST /verify` / `POST /verify-avatar`. It is a separate Node 24 / FFmpeg service, not code that runs inside Convex:
 
@@ -97,4 +97,4 @@ Supply `VERIFY_SHARED_SECRET` securely before starting and use FFmpeg/FFprobe 6.
 
 The internal development seed requires explicit `TAKE_DEPLOYMENT_ENV=development` and `TAKE_ALLOW_DEV_SEED=true`; restore the latter to false afterward. It creates three eligible round-plan dates, not users, friendships, private media or the deployed probe's fixture. Today is eligible only before its configured local window ends; openings persist their original window and refuse expired/stale plans.
 
-A fresh empty deployment needs no backfill. Reused draft rows need reviewed identity migration and `windowStartsAt` / `windowEndsAt` backfill from the original zoned plan/policy before applying the strict schema. Never widen windows or backdate openings to bypass it. V4 audience/social schema changes need their own owner-published migration guidance; do not guess compatible defaults.
+A fresh empty deployment needs no backfill. Reused draft rows need reviewed identity migration and `windowStartsAt` / `windowEndsAt` backfill from the original zoned plan/policy before applying the strict schema. Never widen windows or backdate openings to bypass it. V4's published rule treats a missing legacy stored audience as friends, never public; returned summaries still require the new fields. Ready-head migration guidance remains necessary before upgrading live data.

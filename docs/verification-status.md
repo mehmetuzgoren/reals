@@ -2,7 +2,7 @@
 
 ## Current truth — November 15, 2026
 
-The development backend is **live**, but no hosted verifier exists. The eight-screen mock-exact Reals frontend and v4 social extension are in progress. No production-ready claim follows from the results below. The three PRs remain independent and based on `main` at `3151ed0772f208dcb1700580bf85bdeed79c23b2`.
+The development backend is **live**, but no hosted verifier exists. The eight-screen mock-exact Reals frontend and v4 social extension are in progress. The backend owner has published the [exact v4 contract](wire-v4.md); that is not a ready implementation or deployed v4 checkpoint. No production-ready claim follows from the results below. The three PRs remain independent and based on `main` at `3151ed0772f208dcb1700580bf85bdeed79c23b2`.
 
 | Layer | Exact checkpoint and evidence boundary |
 | --- | --- |
@@ -40,7 +40,7 @@ An earlier `1005036` / build `01M7GGW83TZ9P83QH3V1W10F0K` session covered explic
 ## Remaining gates
 
 - Receive the succeeded mock build from Development, compare all eight screens mock-left/app-right, list every difference and rerun the old Demo privacy/round checks; release the phone afterward.
-- Adopt the backend owner's exact v4 audience/For You/likes/comments/battle shapes once published, then check native compatibility and extend strict probes without weakening existing privacy assertions.
+- Compare the ready native/backend heads against the published v4 audience/For You/likes/comments/battle shapes, then extend strict probes without weakening existing privacy assertions. No ready v4 head is recorded yet.
 - Provision a hosted verifier and dedicated signed-in published fixtures for full live media/privacy/revocation and upload acceptance. Development's internal seed creates plans only.
 - Real Apple OAuth/relay/session refresh/deletion, production rejection of developer identities, signed-device remote APNs and physical capture/audio/permissions/lifecycle remain separate lanes.
 - Review deployment ingress/cache/log/retention/load policy. No merge or auto-merge is authorized.

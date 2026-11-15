@@ -56,7 +56,7 @@ The authenticated mode checks **25 assertions**: Casey/Dana exact-round receipts
 
 Every consumed v3 DTO is recursively validated before projection. Unknown/missing/wrong-type fields, response logs, unsafe denial text and wrong error codes fail. Generic HTTP media failures accept only empty/generic text or the exact actual JSON `{ failure: { code: "NOT_FOUND", message: "Not found", retryable: false } }` shape with an allowlisted generic message. Extra fields or a revealing message fail. Network/missing-function/invalid-argument failures cannot count as authorization denial.
 
-V4 adds fields/endpoints for audience, For You, likes, comments and battles. Until the backend owner publishes those exact shapes, this strict v3 runner is **not** a v4 probe; additive fields fail for review rather than silently admitting unexamined metadata. Keep friends-only fixture invariants and extend validation when those shapes arrive.
+V4's [exact published shapes](../docs/wire-v4.md) add audience, For You, likes, comments and battles; the ready implementation/deployment is pending. This strict v3 runner is **not** a v4 probe: additive fields fail for review rather than silently admitting unexamined metadata. Keep friends-only fixture invariants and extend validation against the actual ready v4 serializers, not a permissive catch-all.
 
 ## Limits and local tooling
 

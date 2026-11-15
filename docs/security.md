@@ -1,6 +1,6 @@
 # Reals privacy and product invariants
 
-These are acceptance requirements, not claims that every lane has passed. The live backend is currently v3; the requested public/social extension is v4 and still needs its owner-published shapes and implementation evidence. See the [acceptance matrix](../verification/acceptance.md).
+These are acceptance requirements, not claims that every lane has passed. The live backend is currently v3; the public/social extension's [v4 shapes are published](wire-v4.md), but its implementation evidence remains pending. See the [acceptance matrix](../verification/acceptance.md).
 
 ## Identity and publication
 
@@ -32,7 +32,7 @@ For You returns public originals only, newest first, excluding the viewer's own 
 
 One like per viewer/item is transactional; no liker-list endpoint is requested. Comments are trimmed plain text, 1–300 characters, rate-limited and deletable by commenter or content author. Report/block rules apply to comments too. Battles pair eligible unpaired public originals with different authors/options; viewers must see both sides. Authors cannot vote, a viewer has one changeable vote, and deleting either side deletes the battle/votes. Content/account deletion also cascades likes/comments/votes as applicable.
 
-These are v4 gates, not results from the older v3 tests or demo images. Exact functions/DTOs are adopted only after the backend owner publishes them.
+These are v4 gates, not results from the older v3 tests or demo images. The published function/DTO contract is recorded separately from the pending implementation/deployment.
 
 ## Media and revocation
 
