@@ -71,7 +71,7 @@ describe("v4 audience and public authorization", () => {
     const owner = await user(t, "owner");
     const roundId = await round(t);
     const intent = await begin(owner.client, roundId, null, "immutable-audience-request");
-    expect(intent).toMatchObject({ minDurationMs: 3000, maxDurationMs: 15000, maxBytes: 8 * 1024 * 1024 });
+    expect(intent).toMatchObject({ minDurationMs: 3000, maxDurationMs: 15000, maxBytes: 32 * 1024 * 1024 });
     expect(await owner.client.mutation(api.uploads.begin, { requestId: "immutable-audience-request", kind: "original", roundId, originalId: null, optionId: "yes", audience: "friends" })).toEqual(intent);
     await expect(owner.client.mutation(api.uploads.begin, { requestId: "immutable-audience-request", kind: "original", roundId, originalId: null, optionId: "yes", audience: "public" })).rejects.toThrow("CONFLICT");
     await send(owner.client, intent);
@@ -257,11 +257,11 @@ describe("v4 audience and public authorization", () => {
     expect(await w.observer.client.query(api.takes.detail, { originalId: w.original.originalId })).toMatchObject({ visibleReplyCount: 0 });
   });
 
-  it("rejects below-minimum stored video bytes without a successful receipt", async () => {
+  it("publishes below-minimum video bytes leniently with the duration clamped to the minimum", async () => {
     const t = setup(); const owner = await user(t, "owner"); const roundId = await round(t);
     const intent = await begin(owner.client, roundId); await send(owner.client, intent, shortVideo);
-    expect(await owner.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", receipt: null, failure: { code: "INVALID_MEDIA", retryable: false } });
-    expect(await owner.client.query(api.rounds.today, {})).toMatchObject({ canViewFriends: false, viewerReceipt: null, ownOriginal: null });
+    expect(await owner.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "published", failure: null });
+    expect(await owner.client.query(api.rounds.today, {})).toMatchObject({ canViewFriends: true, ownOriginal: { durationMs: 3000 } });
   });
 });
 

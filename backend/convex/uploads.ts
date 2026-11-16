@@ -11,9 +11,9 @@ import { orderKey } from "./lib/pagination";
 import { receiptDTO } from "./lib/dto";
 import { bounded, fail, httpOrigin, notFound } from "./lib/errors";
 import type { Failure } from "./lib/errors";
-import { sha256, randomToken, verifyVideo } from "./lib/verification";
+import { sha256, randomToken, verifyVideo, MAX_VIDEO_BYTES } from "./lib/verification";
 
-export const MAX_BYTES = 8 * 1024 * 1024;
+export const MAX_BYTES = MAX_VIDEO_BYTES;
 export const MIN_DURATION_MS = 3000;
 export const MAX_DURATION_MS = 15000;
 const leaseMs = 120000;

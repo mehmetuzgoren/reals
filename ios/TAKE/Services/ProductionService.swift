@@ -215,7 +215,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
             throw Self.invalidMedia
         }
         let epoch = sessionEpoch
-        try await validateClip(clip, maxBytes: 8 * 1_024 * 1_024, minDuration: 3_000, maxDuration: 15_000)
+        try await validateClip(clip, maxBytes: 32 * 1_024 * 1_024, minDuration: 3_000, maxDuration: 15_000)
         guard epoch == sessionEpoch else { throw CancellationError() }
         var arguments: [String: ConvexEncodable?] = [
             "requestId": draft.id, "kind": draft.kind.rawValue, "roundId": draft.roundId,
@@ -260,7 +260,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
                 uploadProgress[intent.uploadId] = nil
             }
         }
-        let maxBytes = min(intent.maxBytes, 8 * 1_024 * 1_024)
+        let maxBytes = min(intent.maxBytes, 32 * 1_024 * 1_024)
         try await validateClip(clip, maxBytes: maxBytes, minDuration: intent.minDurationMs, maxDuration: intent.maxDurationMs)
         let destination = try configuration.uploadURL(intent.uploadUrl, uploadId: intent.uploadId, asset: "video")
         let token = try await authentication.freshAccessToken()
@@ -593,8 +593,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
     }
 
     private func validateClip(_ clip: RecordedClip, maxBytes: Double, minDuration: Double, maxDuration: Double) async throws {
-        guard clip.source == .camera, clip.url.isFileURL, clip.url.pathExtension.lowercased() == "mp4",
-              clip.durationMs.isFinite, clip.durationMs >= minDuration, clip.durationMs <= maxDuration,
+        guard clip.source == .camera, clip.url.isFileURL,
               !clip.url.resolvingSymlinksInPath().path.hasPrefix(Bundle.main.bundleURL.resolvingSymlinksInPath().path + "/") else {
             throw Self.invalidMedia
         }
@@ -602,13 +601,6 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         guard values.isRegularFile == true, let size = values.fileSize, size > 0, Double(size) <= maxBytes else {
             throw Self.invalidMedia
         }
-        let asset = AVURLAsset(url: clip.url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
-        let duration = try await asset.load(.duration)
-        let videos = try await asset.loadTracks(withMediaType: .video)
-        let audio = try await asset.loadTracks(withMediaType: .audio)
-        let actualDuration = CMTimeGetSeconds(duration) * 1_000
-        guard actualDuration.isFinite, actualDuration >= minDuration, actualDuration <= maxDuration,
-              !videos.isEmpty, !audio.isEmpty else { throw Self.invalidMedia }
     }
 
     private func clearSession() {

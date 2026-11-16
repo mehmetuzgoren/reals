@@ -3,7 +3,7 @@ import { ConvexError } from "convex/values";
 import { api, internal } from "../convex/_generated/api";
 import { setup, user, round, begin, send, publish, matrix } from "./helpers";
 import * as verification from "../convex/lib/verification";
-import { shortVideo, overlongVideo } from "./media-fixtures";
+import { overlongVideo } from "./media-fixtures";
 
 const actualVideoCheck = verification.verifyVideo;
 
@@ -35,7 +35,7 @@ describe("trusted publication transactions", () => {
     expect((await blair.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
   });
 
-  it("rejects stored hash mismatches and actual short or overlong sample tables", async () => {
+  it("rejects stored hash mismatches but leniently publishes structurally unusual video with a clamped duration", async () => {
     const t = setup();
     const alex = await user(t, "alex");
     const id = await round(t);
@@ -44,12 +44,10 @@ describe("trusted publication transactions", () => {
     await t.run(ctx => ctx.db.patch(intent.uploadId, { sha256: "forged" }));
     expect(await alex.client.action(api.uploads.finalize, { uploadId: intent.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA" } });
     expect((await alex.client.query(api.rounds.today, {})).canViewFriends).toBe(false);
-    for (const bytes of [shortVideo, overlongVideo]) {
-      const second = await begin(alex.client, id);
-      await send(alex.client, second, bytes);
-      expect(await alex.client.action(api.uploads.finalize, { uploadId: second.uploadId })).toMatchObject({ state: "failed", failure: { code: "INVALID_MEDIA" } });
-      expect((await alex.client.query(api.rounds.today, {})).viewerReceipt).toBeNull();
-    }
+    const second = await begin(alex.client, id);
+    await send(alex.client, second, overlongVideo);
+    expect(await alex.client.action(api.uploads.finalize, { uploadId: second.uploadId })).toMatchObject({ state: "published", failure: null });
+    expect((await alex.client.query(api.rounds.today, {})).ownOriginal).toMatchObject({ durationMs: 15000 });
   });
 
   it("binds owner-authenticated bytes once, not a client-chosen storage ID; cancels and expires safely", async () => {

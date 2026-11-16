@@ -35,7 +35,7 @@ const upload = httpAction(async (ctx, request) => {
     [, uploadId, mode] = match;
     const claimedId = await ctx.runMutation(mode === "video" ? internal.uploads.claimUpload : internal.profiles.claimAvatar, { uploadId, lease });
     const mime = request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase();
-    if (mode === "video" ? mime !== "video/mp4" : mime !== "image/jpeg" && mime !== "image/png") fail("INVALID_MEDIA", "Unsupported upload content type");
+    if (mode === "video" ? mime !== "video/mp4" && mime !== "video/quicktime" : mime !== "image/jpeg" && mime !== "image/png") fail("INVALID_MEDIA", "Unsupported upload content type");
     const bytes = await readBody(request, mode === "video" ? MAX_BYTES : 2 * 1024 * 1024);
     const hash = await sha256(bytes);
     if (mode === "video") {

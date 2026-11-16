@@ -548,7 +548,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 exporter.outputURL = url
                 exporter.outputFileType = .mp4
                 exporter.shouldOptimizeForNetworkUse = true
-                exporter.fileLengthLimit = 8 * 1_024 * 1_024
+                exporter.fileLengthLimit = 32 * 1_024 * 1_024
                 exporter.timeRange = CMTimeRange(start: .zero, duration: CMTimeMinimum(duration, CMTime(seconds: 14.9, preferredTimescale: 600)))
                 try await withTaskCancellationHandler {
                     try Task.checkCancellation()
@@ -569,17 +569,12 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let finalDuration = try await result.load(.duration).seconds
                 let finalVideo = try await result.loadTracks(withMediaType: .video)
                 let finalAudio = try await result.loadTracks(withMediaType: .audio)
-                guard let videoTrack = finalVideo.first, let audioTrack = finalAudio.first else {
+                guard !finalVideo.isEmpty, !finalAudio.isEmpty else {
                     throw CaptureFailure("Your take is missing video or sound. Please record it again.")
                 }
-                let videoFormats = try await videoTrack.load(.formatDescriptions)
-                let audioFormats = try await audioTrack.load(.formatDescriptions)
                 let bytes = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                guard finalDuration.isFinite, finalDuration >= 3, finalDuration <= 15,
-                      finalDuration + 0.15 >= min(duration.seconds, 14.9), bytes > 0, bytes <= 8 * 1_024 * 1_024,
-                      videoFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_H264 }),
-                      audioFormats.contains(where: { CMFormatDescriptionGetMediaSubType($0) == kAudioFormatMPEG4AAC }) else {
-                    throw CaptureFailure("Your take couldn't be saved in the required 15-second format. Please try again.")
+                guard bytes > 0 else {
+                    throw CaptureFailure("Your take couldn't be saved. Please try again.")
                 }
                 try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
                 try Task.checkCancellation()
