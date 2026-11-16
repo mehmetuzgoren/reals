@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct RealsHomeView: View {
@@ -261,21 +262,25 @@ private struct RealsFeedCard: View {
 
     private func loadThumbnail() async {
         guard !model.isDemo, let service = model.service else { return }
+        let key = "\(model.generation)-\(model.accessRevision)-\(original.id)" as NSString
+        if let cached = RealsFeedFrames.cache.object(forKey: key) { thumbnail = cached; return }
         let epoch = model.generation
         let revision = model.accessRevision
         do {
-            let grant = try await service.playback(contentId: original.id, kind: .original, asset: "thumbnail")
+            let grant = try await service.playback(contentId: original.id, kind: .original, asset: "video")
             guard model.isCurrentAccess(generation: epoch, revision: revision), grant.expiresAt > service.serverNow, let url = URL(string: grant.url), url.scheme == "https" else { return }
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.urlCache = nil
-            let session = URLSession(configuration: configuration)
-            defer { session.invalidateAndCancel() }
-            let (data, response) = try await session.data(from: url)
-            guard !Task.isCancelled, model.isCurrentAccess(generation: epoch, revision: revision), grant.expiresAt > service.serverNow,
-                  (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 5_242_880 else { return }
-            thumbnail = UIImage(data: data)
-            try await Task.sleep(for: .seconds(max(0, (grant.expiresAt - service.serverNow) / 1_000)))
-            thumbnail = nil
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 720, height: 720)
+            let (frame, _) = try await generator.image(at: CMTime(seconds: 0.5, preferredTimescale: 600))
+            guard !Task.isCancelled, model.isCurrentAccess(generation: epoch, revision: revision) else { return }
+            let image = UIImage(cgImage: frame)
+            RealsFeedFrames.cache.setObject(image, forKey: key)
+            thumbnail = image
         } catch {}
     }
+}
+
+private enum RealsFeedFrames {
+    static let cache = NSCache<NSString, UIImage>()
 }
