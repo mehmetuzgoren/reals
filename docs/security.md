@@ -1,6 +1,6 @@
 # Reals privacy and product invariants
 
-These are acceptance requirements, not claims that every lane has passed. The [v4 backend](wire-v4.md) is deployed at `902c8f8`; independent live evidence covers signed-in no-media locks/social/session behavior and missing-ID interaction denials, not positive publication or real private-content isolation. See the [acceptance matrix](../verification/acceptance.md).
+These are acceptance requirements, not claims that every lane has passed. Backend `807e034` runs in-Convex structural media checks. Independent live API evidence now includes publication receipts, existing private-content intersections/counts, grant delivery/removal revocation and successful [v4 interactions](wire-v4.md). It uses synthetic bundled MP4 bytes, not a native-export or physical-camera artifact. See the [acceptance matrix](../verification/acceptance.md).
 
 ## Identity and publication
 
@@ -32,18 +32,18 @@ For You returns public originals only, newest first, excluding the viewer's own 
 
 One like per viewer/item is transactional; no liker-list endpoint is requested. Comments are trimmed plain text, 1–300 characters, rate-limited and deletable by commenter or content author. Report/block rules apply to comments too. Battles pair eligible unpaired public originals with different authors/options; viewers must see both sides. Authors cannot vote, a viewer has one changeable vote, and deleting either side deletes the battle/votes. Content/account deletion also cascades likes/comments/votes as applicable.
 
-These are v4 gates, not results from older v3 tests or demo images. Implementation/deployment exists, but positive public/friends interaction, filtered-count and deletion-cascade acceptance still needs published fixtures.
+The current live matrix exercised public/friends separation, private reply/comment counts, likes, comments, automatic battle pairing, vote changes and author-vote denial. Block/delete/account cascades remain separate unexecuted live gates; older v3 tests and demo images do not establish them.
 
 ## Media and revocation
 
-Uploads are owner-private intents bound to actual authenticated bytes. Clients cannot attach storage IDs, replace bound bytes or submit trusted verification metadata. Missing/failed verification stays closed. The deployed v4 source requires 3–15 seconds; actual hosted publication/media acceptance remains blocked by the unhosted verifier. Application video remains ≤8 MiB.
+Uploads are owner-private intents bound to actual authenticated bytes and SHA-256. Clients cannot attach storage IDs, replace bound bytes or submit trusted verification metadata. In-Convex checks bound MP4/MOV boxes, sample tables/ranges, portrait H.264/HEVC video, zero/one AAC track, 3–15-second video duration and ≤8 MiB. Native uses H.264/AAC fast-start MP4. Failed checks create no receipt; live one-second/non-MP4 cases confirmed this. There is no external verifier requirement. Structural checks do not fully decode codecs, guarantee sound or catch every corrupt encoded payload; new content has no server thumbnail.
 
 Playback uses opaque ≤60-second grants; serve bytes through the authorized HTTP handler, never permanent storage redirects. Recheck the bound viewer's current access on every GET/HEAD/Range, including new-round locks, remove/block, account disabling/deletion and expiry. Use private/no-store, correct content type/length and byte ranges. The current generic HTTP denial is exactly `{ failure: { code: "NOT_FOUND", message: "Not found", retryable: false } }`; extra hidden fields are not acceptable.
 
-Already delivered bytes cannot be recalled. Clients must stop/release players, cancel outstanding work and clear private thumbnails/captions/subscriptions/drafts when identity or access changes. A screenshot cannot prove this lifecycle. Avatars are normalized minimal profile assets, not private-video resolvers.
+Already delivered bytes cannot be recalled. Clients must stop/release players, cancel outstanding work and clear private thumbnails/captions/subscriptions/drafts when identity or access changes. A screenshot cannot prove this lifecycle. Avatars are structurally checked JPEG/PNG profile assets that preserve original bytes, MIME and metadata; they are not resized/normalized or private-video resolvers.
 
 ## Auth handoff and remaining limits
 
 The app's random relay nonce must match before any redemption; Convex's separate saved OAuth state is used for redemption. Reject missing, repeated, mismatched, expired or replayed handoffs. The HTTPS relay has one fixed custom-scheme destination, strict nonce/code shapes and no-store/no-referrer; it logs no codes and accepts no redirect URL from a caller.
 
-APNs tokens/preferences are private. Current remote delivery is unavailable, not a mocked success; eventual workers must recheck live authorization/preferences and send no opinions, captions or private author data. Captions may be unavailable, never fabricated. Payments, subscriptions, public profile pages and rankings remain out of scope. Real Apple OAuth, hosted verified media, signed-device push and physical capture remain separate unexecuted lanes.
+APNs tokens/preferences are private. Current remote delivery is unavailable, not a mocked success; eventual workers must recheck live authorization/preferences and send no opinions, captions or private author data. Captions may be unavailable, never fabricated. Payments, subscriptions, public profile pages and rankings remain out of scope. Real Apple OAuth, actual native-export/physical capture and signed-device push remain separate unexecuted lanes.

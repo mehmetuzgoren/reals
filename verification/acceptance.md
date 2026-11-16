@@ -1,6 +1,6 @@
 # Independent Reals acceptance matrix
 
-These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. [V4 is deployed](../docs/wire-v4.md), but independent live evidence covers only no-media lock/social/session and missing-ID interaction guards, not complete published-content acceptance.
+These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. A separate three-account matrix at [deployed `807e034`](../docs/verification-status.md) now covers published private/public API scenarios; it does not clear every row or native/hardware acceptance.
 
 | ID | Scenario and required result | Evidence lane |
 | --- | --- | --- |
@@ -9,7 +9,7 @@ These are required outcomes, not completed checkboxes. Use dedicated staging for
 | A03 | Locked Today exposes only safe prompt/own/minimal friend state, never others' positions/captions/replies/media/storage metadata. | Privacy probe + DTO review |
 | A04 | Locked direct original/reply/caption/video/thumbnail access is denied; another round's receipt does not help. | Privacy probe + backend tests |
 | A05 | Option → Record → 3–15-second capture or explicit fictional sample → preview/retake → Post → reveal. Shutter cannot stop before 3 seconds and auto-stops at 15. | Mock UI + actual hardware |
-| A06 | Upload/processing/failure/cancel never create a receipt. Missing verifier, malformed/under-three/over-fifteen-second bytes and unauthorized intents fail closed. | Backend/media + hosted verifier + failure UI |
+| A06 | Upload/processing/failure/cancel never create a receipt. Missing bytes, malformed/under-three/over-fifteen-second media and unauthorized intents fail closed under in-Convex structural checks. | Backend/media + hosted API + failure UI |
 | A07 | One original per round survives concurrent finalization, retries, bound-byte replay and repeated request IDs; replies cannot create receipts. | Backend + live publication |
 | A08 | Friends/For You lists contain originals only; full-screen replies stay flat, visible-only and navigable. | Privacy probe + cloud UI |
 | A09 | Casey sees Blair's reply on Alex; Dana sees Alex but no Blair reply/count/name/caption/thumbnail/media, even by known ID. | Privacy probe + Demo controls |
@@ -20,7 +20,7 @@ These are required outcomes, not completed checkboxes. Use dedicated staging for
 | A14 | Next round relocks, prior receipts don't unlock it, own history remains reachable and friends' old-round content cannot be browsed. | Demo + backend |
 | A15 | Players/subscriptions/private caches/drafts clear or stop on navigation/background/identity/round/social change; no eager full-feed downloads. | Native tests + lifecycle UI |
 | A16 | APNs token/preferences are private and exact-shaped; sender stays unavailable until a real worker exists; eventual delivery honors current permission/access and refetches on tap. | Boundary probe + backend + signed-device worker |
-| A17 | Convex Auth v3 browser flow checks relay nonce before redemption with separate saved OAuth state; production rejects developer identities; wrong/expired/revoked sessions fail. | Source + hosted real auth |
+| A17 | Convex Auth 2.0.0 browser flow checks relay nonce before redemption with separate saved OAuth state; production rejects developer identities; wrong/expired/revoked sessions fail. | Source + hosted real auth |
 | A18 | Camera/mic denial, interruption, orientation/audio, upload retry, saved draft and cleanup recover without premature unlock; actual capture bytes satisfy verifier. | Native/cloud injectable + physical device |
 | A19 | Eight mocked screens match strings/elements/order/alignment/colors with only the two explicit exceptions; Friends/Profile remain reachable without a tab bar. | Eight mock-left/app-right comparisons |
 | A20 | No payments/subscriptions, ranking, liker lists, public profile pages or audience editing; no invented captions/transcripts. | Product/source walkthrough |

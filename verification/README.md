@@ -23,7 +23,7 @@ This is not signed-in or valid-media acceptance. A missing route, malformed enve
 
 ## Authenticated privacy/media probe
 
-`take-probe.mjs` checks the actual Functions API and media route at v3 shapes. It creates short-lived grant records and reads bounded bytes but does not seed users/content or upload media. This lane remains **blocked**, not replaced by the bootstrap probe: the live development deployment has no hosted verifier or provided acceptance fixture.
+`take-probe.mjs` checks the Functions API/media route with strict v3 positive-content shapes. It creates short-lived grant records and reads bounded bytes but does not seed users/content or upload media. Its original 25-case fixture run remains **unexecuted**: reconcile its schemas against actual v4 serializers first. Backend `807e034` now checks media inside Convex; there is no missing external verifier requirement. Separate three-account live publication/private/v4 results are recorded in [status](../docs/verification-status.md), not reported as this CLI run.
 
 Use a dedicated non-production deployment and create through trusted setup:
 
@@ -56,11 +56,11 @@ The authenticated mode checks **25 assertions**: Casey/Dana exact-round receipts
 
 Every consumed v3 DTO is recursively validated before projection. Unknown/missing/wrong-type fields, response logs, unsafe denial text and wrong error codes fail. Generic HTTP media failures accept only empty/generic text or the exact actual JSON `{ failure: { code: "NOT_FOUND", message: "Not found", retryable: false } }` shape with an allowlisted generic message. Extra fields or a revealing message fail. Network/missing-function/invalid-argument failures cannot count as authorization denial.
 
-V4's [deployed shapes](../docs/wire-v4.md) add audience, For You, likes, comments and battles at `902c8f8`. This runner's positive-content schemas remain strict v3, **not** full v4 acceptance: additive fields fail for review rather than silently admitting unexamined metadata. Its unchanged Today/empty-feed and generic-denial assertions were exercised live without media; separate authorized QA also checked v4 locked For You and missing-ID interactions. Keep friends-only fixture invariants and extend positive-content validation against the actual v4 serializers before running a complete published fixture.
+V4's [deployed shapes](../docs/wire-v4.md) add audience, For You, likes, comments and battles. This runner's positive-content schemas remain strict v3: additive fields fail for review rather than silently admitting unexamined metadata. Its unchanged Today/empty-feed/denial checks ran at `902c8f8`; a separate exact-v4 QA harness exercised real published content at `807e034`. Keep friends-only fixture invariants and extend this CLI's positive-content validation before its complete fixture run. New content's `thumbnailAssetId` is null; positive legacy-thumbnail delivery needs an actual legacy fixture.
 
 ## Limits and local tooling
 
-Neither runner proves real Apple sign-in, positive session refresh/revocation, physical recording/audio, verifier processing, pending requests, concurrent publication, new-round transitions, native cache/player lifecycle, grant expiry by waiting or live remove/block/delete revocation. The authenticated mode needs separately seeded thumbnail bytes for positive thumbnail delivery. APNs registration is not delivery.
+Neither CLI creates publications or proves real Apple sign-in, physical recording/audio, concurrent publication, new-round transitions, native cache/player lifecycle, block/delete revocation or positive legacy-thumbnail delivery. Separate live QA results cover development session refresh/sign-out, publication, selected private/public access, friendship-removal revocation and explicitly recorded expiry checks; they are not blanket acceptance. APNs registration is not delivery.
 
 ```sh
 node --test verification/*.test.mjs

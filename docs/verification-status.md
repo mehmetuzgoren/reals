@@ -2,14 +2,41 @@
 
 ## Current truth — November 15, 2026
 
-The development **v4 backend is live** at `902c8f8`, but no hosted verifier exists. Signed-in no-media locks/social/sessions and v4 negative guards passed independently. Positive publication/private-media behavior and the eight-screen mock-exact native artifact remain unverified. The [v4 contract](wire-v4.md) is implemented/deployed, not a claim that all outcomes passed. The three PRs remain independent and based on `main` at `3151ed0772f208dcb1700580bf85bdeed79c23b2`.
+The development backend is live at **`807e034` with in-Convex structural media checks**; no external verifier is required. The new published-content matrix passed **84/84 hosted scenario assertions plus one local fixture check**. It covers actual publication/receipts, private intersections/counts/grants/removal revocation and successful v4 interactions, not native rendering or physical capture. PR #3 merged; backend follow-up #4 supplies the current checker. Docs PR #1 remains draft on its original `3151ed0` base pending the routed mock artifact.
 
 | Layer | Exact checkpoint and evidence boundary |
 | --- | --- |
-| Backend live v4 | [PR #3](https://github.com/mehmetuzgoren/reals/pull/3), `902c8f84c1abf998728e0c5c4b566a614b9e3aca`, confirmed deployed by Development after v3 `a48095d`. Bootstrap remains development-only password sign-in, Apple placeholders, site origin and America/Los_Angeles 10–20 settings. This verification reran real signed-in/v4 routes after that confirmation, not an environment dump or deployment. |
-| Native Convex Auth source | [PR #2](https://github.com/mehmetuzgoren/reals/pull/2), `027d48899d0cd0726a9365e3039858fb816a84e0`. Auth/APNs request names and nonce/OAuth-state distinction were source-read. No build or phone result from this auth head is claimed. |
+| Backend live media head | [PR #4](https://github.com/mehmetuzgoren/reals/pull/4), `807e0345f80e6f0f91796edc813f13f9c29ad353`, confirmed deployed by Development after v4 `902c8f8` / merged PR #3. Bootstrap remains development-only password sign-in, Apple placeholders and Los Angeles 10–20 settings. This thread independently exercised deployed APIs, not an environment dump or deployment. |
+| Native source / fixture | [PR #2](https://github.com/mehmetuzgoren/reals/pull/2), `89910ba95cf3db872abf552c56895c6e22d0470d`: bundled `sample-mock.mp4` bytes and AVAssetExportSession configuration were source-read. Earlier auth/APNs/nonce source-read was `027d488`. No current native build/phone result or actual AVAssetExportSession output is claimed. |
 | Last installed visual artifact | Native `566d250882aa0ee55775efc2753bb3a9eeacb239`, build `01M7GKCYFDRXT36B8TEGNYAXGK`, managed version `3eb64da0-defc-4e79-a01b-b04065151b92`. Six monochrome states independently captured; this predates Convex-only auth and the new eight-screen mocks. |
 | Docs/tooling | [PR #1](https://github.com/mehmetuzgoren/reals/pull/1), live-boundary probe plus 26 tooling tests. Review at `5308700` cleared the earlier deployed-boundary delta. Final-head CI/review is recorded in the PR, not inferred from that earlier review. |
+
+## Independently executed published-media API matrix
+
+At `807e034`, the main three-account matrix passed **73 hosted scenario assertions +1 local fixture check** at 23:54:04 UTC on November 15. A follow-up passed **6/6** public-playback/expiry scenarios at 23:56:37 UTC: grant issuance, exact GET bytes, HEAD length, one-byte Range, then generic GET/HEAD denial after waiting beyond expiry. A **5/5** revocation-timing follow-up passed at 00:00:25 UTC on November 16 (still November 15 in Los Angeles). It recorded six post-removal GET/HEAD denials with **59,126–59,416 ms remaining after each response**. This closes the first harness's timing-evidence gap: a pre-removal expiry check alone did not prove the grant remained unexpired when denial arrived. These are 84 hosted scenarios, not 84 HTTP requests; a scenario can check multiple calls. No run woke a phone or started a build.
+
+The fixture is the exact synthetic native `sample-mock.mp4` from `89910ba`: 720×1280 H.264 plus mono AAC, four seconds, 29,721 bytes, moov before mdat, SHA-256 `0bcb95b579d4f9236054a13dcc79919ee71c510b53e11aa735c78cb3d78218f6`. It matches the requested media format but is **not an AVAssetExportSession-produced clip or physical recording**. The one-second negative was a trimmed copy. Actual export-preset/device compatibility and sound remain unverified.
+
+- A published a friends-only original; B/C published opposing public originals through `uploads:begin` → bearer-authenticated raw POST → `uploads:finalize`. Upload alone left each locked; only published originals created their exact-round receipts. B's post unlocked A's original in B's friends feed; posted, unrelated C was still denied it. No seed was needed.
+- B published a private reply and private comment on A. A/B saw exactly one of each. C temporarily became A's friend only: C could read A's parent but saw zero replies/comments and could not obtain its hidden reply's grant, read its caption, like it or list its comments. Removing A–C immediately denied C's still-unexpired parent grant. Removing A–B hid replies/comments, revoked B's parent and own-reply grants, and denied new grants; restoring A–B restored the exchange. C finishes unrelated.
+- Authorized private and public grants delivered exact source bytes, HEAD length and one-byte Range/206, with private/no-store and no redirect. Corrupted grants were denied. The public follow-up waited for real expiry before GET/HEAD denial; it did not substitute token corruption or expired JWTs for grant expiry.
+- For You returned public originals only, not friends-only A or the viewer's own take. Public likes toggled without duplicates; a visible private reply could be liked; a trimmed public comment was readable/countable by unrelated posted C. Opposing B/C originals paired automatically. Non-author A voted left, changed right and repeated without duplication; both authors were forbidden to vote.
+
+QA content is intentionally retained: three originals, one reply, two comments, two current likes and one battle with A's single right-side vote. A/B remain approved friends, C unrelated. No account/content deletion or block was performed. Failed/cancelled QA intents and expired grant records may also remain. Passwords/refresh/access tokens and grant URLs remain machine-only.
+
+Expected live negative responses were exact and non-retryable:
+
+```json
+{"failure":{"code":"INVALID_MEDIA","message":"Unsupported upload content type","retryable":false}}
+```
+
+That non-MP4 MIME POST returned HTTP 422. A one-second MP4 and non-MP4 bytes disguised as `video/mp4` were accepted as staged bytes, then `uploads:finalize` returned HTTP 200 with this failed publication result, never a receipt:
+
+```json
+{"status":"success","value":{"failure":{"code":"INVALID_MEDIA","message":"Unsupported or structurally invalid MP4/MOV video","retryable":false},"originalId":null,"receipt":null,"replyId":null,"state":"failed"}}
+```
+
+No unexpected live failure occurred. The original strict-v3 25-case CLI fixture run remains unexecuted; these results came from a separate exact-v4 three-account harness and must not be conflated with it. Actual AVAssetExportSession/camera output, current mock rendering, block/delete/account cascades, concurrency, legacy thumbnails and next-round live relock remain separate gates.
 
 ## Independently executed hosted boundary probe
 
@@ -19,9 +46,9 @@ It checked unauthenticated session/content denial, the current APNs registration
 
 The initial run exposed a probe mismatch: media denial is a strict JSON `failure` envelope, not only plain text. It was reconciled against the actual backend `lib/http.ts` and live response, with extra-field/wrong-code/revealing-message regressions. The probe now also rejects unexpected API error text and revealing relay bodies; it accepts only the exact public guard messages and reviewed Convex framework wrappers. All 19 checks passed after those changes. GET `/oauth/apple/callback` returns 404 because the registered callback is POST; an empty POST returns 400. This is route presence, not provider success.
 
-The full **25-assertion published-fixture privacy/media probe remains unrun** on this deployment. Dedicated signed-in QA accounts now exist, but published original/reply fixtures and a hosted verifier are still absent. A green boundary probe does not clear this gate.
+The original **25-assertion CLI fixture probe remains unrun** because its strict v3 positive-content schemas and original fixture layout need reconciliation. The newer published matrix above does not use that CLI. Dedicated accounts/published QA content now exist and no hosted verifier is required. A green unauthenticated boundary probe alone never establishes that published coverage.
 
-## Independently executed signed-in checks without media
+## Historical signed-in checks without media — deployed `902c8f8`
 
 Development authorized live creation of `qa_reals_a`, `qa_reals_b` and `qa_reals_c`. Passwords/tokens stay only on the verification machine in a 0700 directory/0600 file, never in this repository or shared records. The bootstrap passed **19/19** live assertions at 23:09:44 UTC, before v4 deployment was confirmed. After Development confirmed `902c8f8`, the complete no-media matrix passed **86/86** at 23:19:42 UTC and the added v4 matrix passed **39/39** at 23:19:46 UTC on November 15. Those are 125 current-head signed-in assertions plus the earlier 19 bootstrap assertions, separate from the 19 unauthenticated boundary assertions above. No app, phone or video was involved.
 
@@ -34,11 +61,11 @@ Development authorized live creation of `qa_reals_a`, `qa_reals_b` and `qa_reals
 
 The first attempt used access JWTs that had expired while the harness was prepared; the gateway correctly returned 401. Refreshing the fixture sessions fixed that setup issue. Three social-denial checks initially rejected the actual public source-path wrapper; after correcting the exact expected path, the entire 86-assertion pass was rerun successfully. The shared strict validator now also accepts the reviewed real `NOT_FOUND` request-ID/stack envelopes, including the nested media-action frame, while rejecting added diagnostics or unknown paths. No backend defect was observed in these checks.
 
-Still required: published receipt/unlock, original/reply visibility and filtered counts, positive media/Range/expiry, remove/block/delete revocation of real grants, next-round relock and successful v4 public/friends feeds, likes/comments/battle votes, author exclusions and cascades on real published fixtures. Missing-ID denial does not prove existing private-content authorization. Real Apple OAuth, production developer-session rejection and live account deletion remain separate unexecuted lanes.
+At this earlier checkpoint, published receipt/unlock, visibility/counts, media and v4 success paths were still unexecuted; the later `807e034` matrix above supplies only its explicitly named coverage. These earlier missing-ID denials themselves do not prove existing private-content authorization. Real Apple OAuth, production developer-session rejection and live account deletion remain separate unexecuted lanes.
 
 ## Local and historical results
 
-At earlier v3 backend `a48095d`, the source owner reported 75 backend tests, 3 actual HTTP/FFmpeg integrations, 61 worker host tests, strict local Convex analysis/codegen and a local signed-session/deletion smoke. Its read-only reviewer reported 50 targeted tests. Those are historical owner/reviewer results, not a new independent local v4 execution by this thread. Current v4 evidence here is the explicitly scoped live matrix above.
+At current `807e034`, the source owner reports strict Convex analysis/codegen, TypeScript, 101 API tests and 31 actual-media integrations with no external verification fetch. This thread did not rerun those local suites. Earlier v3 `a48095d` owner/reviewer results (75 backend /3 HTTP-FFmpeg /61 worker and 50 targeted tests) remain historical. Current independent evidence here is the explicitly scoped live matrix above.
 
 This thread previously executed backend `fbb0033da8108b2e9b4b51d77eb01bb19b3548fb`: typecheck +43 tests and 3 actual authenticated HTTP-worker/FFmpeg integrations, Node 24.22.3 / FFmpeg 6.1.1. Worker 61 passed at `468c817` and its tree was unchanged at `fbb0033`. These older identity-based snapshots do not establish current Convex Auth or v4 correctness.
 
@@ -55,7 +82,7 @@ An earlier `1005036` / build `01M7GGW83TZ9P83QH3V1W10F0K` session covered explic
 ## Remaining gates
 
 - Receive the succeeded mock build from Development, compare all eight screens mock-left/app-right, list every difference and rerun the old Demo privacy/round checks; release the phone afterward.
-- Compare the matching native head with deployed backend `902c8f8`, then extend strict positive-content probe schemas without weakening existing privacy assertions. The native mock artifact has not been routed here.
-- Provision a hosted verifier and dedicated signed-in published fixtures for full live media/privacy/revocation and upload acceptance. Development's internal seed creates plans only.
+- Obtain actual AVAssetExportSession-produced MP4/camera bytes and the matching native artifact for exact client-export/upload/playback compatibility. The synthetic bundled clip does not establish that provenance.
+- Extend the original CLI's strict positive-content schemas to actual v4 serializers without weakening privacy assertions. Separately test live block/delete/account cascades, concurrency, overlong/oversized variants, legacy thumbnails and next-round relock; preserve the retained QA content unless cleanup is authorized. No verifier hosting is needed.
 - Real Apple OAuth/relay, live account deletion, production rejection of developer identities, signed-device remote APNs and physical capture/audio/permissions/lifecycle remain separate lanes. Development-password session refresh/sign-out were verified above.
 - Review deployment ingress/cache/log/retention/load policy. No merge or auto-merge is authorized.

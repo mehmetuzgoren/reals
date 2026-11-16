@@ -38,7 +38,7 @@ The app registers the internal `take` callback scheme. Apple browser auth uses `
 
 ## Live development deployment
 
-Development deployed backend v4 `902c8f84c1abf998728e0c5c4b566a614b9e3aca` to project `mehmet-uzgoren/reals`, deployment `first-mandrill-982` on November 15, 2026, replacing v3 `a48095d`. SDK: `https://first-mandrill-982.convex.cloud`; HTTP: `https://first-mandrill-982.convex.site`. Independent live checks reached its auth/relay/media guards and signed-in lock/social/session/v4-denial paths; they did not publish video. A root-page 404 is not a deployment-health test.
+Development confirmed backend `807e0345f80e6f0f91796edc813f13f9c29ad353` deployed to project `mehmet-uzgoren/reals`, deployment `first-mandrill-982` on November 15, 2026, replacing v4 `902c8f8` with in-Convex media checks. SDK: `https://first-mandrill-982.convex.cloud`; HTTP: `https://first-mandrill-982.convex.site`. Independent live API checks published three originals and one private reply, obtained receipts, read exact playback bytes and exercised private/public interactions. A root-page 404 is not a deployment-health test.
 
 Dependencies at this source: Convex **1.50.0**, Convex Auth **2.0.0**, Temporal polyfill **0.5.1**, Vitest **5.1.0**. On Node 24:
 
@@ -74,22 +74,13 @@ Apple's HTTPS return is `/oauth/apple/callback`, a **POST** route. An empty POST
 
 Access tokens default to 60 seconds; refresh securely through Convex Auth and replace the SDK session. Sign-out clears private state and revokes the session. Account deletion requires a fresh sign-in to the same account within five minutes; refresh does not reset session age. Failure is `REAUTH_REQUIRED`. Deletion tombstones the app user and revokes its sessions; it does not delete the person's Apple account.
 
-## Verifier and notification boundary
+## In-Convex media checks and notification boundary
 
-The verifier is **not hosted**. Live publication cannot create a receipt without it. `MEDIA_VERIFIER_ORIGIN` must eventually be the worker's HTTPS origin; `MEDIA_VERIFIER_SECRET` must match its server-only `VERIFY_SHARED_SECRET` (at least 32 random characters). Do not set a pretend worker URL or accept client metadata as verification.
+No external verifier, media variable, runtime binary or additional secret is required. `uploads:begin` returns an owner-bound HTTPS URL and limits. POST actual `video/mp4` bytes with the Convex Auth access bearer, expect `{ uploadId }`, then call the `uploads:finalize` action. Only `state: "published"` creates an original's receipt. No client duration/storage ID/verification result is trusted; bound bytes are hashed again during finalization.
 
-The backend caps video at **8 MiB**, ordinary non-fragmented portrait H.264/AAC-LC MP4, square pixels, ≤60 FPS and 3,000–15,000 ms. Native export uses a timing margin. The worker's standalone body cap is 20 MiB; that does not widen the application's 8 MiB cap. Avatars accept ≤2 MiB / 2048×2048 JPEG/PNG and become metadata-free ≤512px JPEG. The [deployed v4 contract](wire-v4.md) returns `minDurationMs: 3000`; no successful hosted media publication has been verified.
+The active checker bounds MP4/MOV boxes, sample tables/ranges, one portrait H.264/HEVC track, zero/one AAC track, exact 3,000–15,000 ms video duration and **8 MiB**. Native capture/Debug sample export uses `AVAssetExportPreset1280x720`, MP4, fast-start, H.264/AAC and a 14.9-second trim margin. The live fixture is the native repository's four-second 720×1280 H.264/AAC `sample-mock.mp4`, not an actual AVAssetExportSession output. New publications return `thumbnailAssetId: null`; clients use placeholders. Structural checks do not guarantee full codec decodability, audible audio or metadata normalization.
 
-The worker uses actual stored bytes plus `X-Content-SHA256` at authenticated `POST /verify` / `POST /verify-avatar`. It is a separate Node 24 / FFmpeg service, not code that runs inside Convex:
-
-```sh
-cd backend/verifier
-npm ci --ignore-scripts --no-audit --no-fund
-npm run check
-npm start
-```
-
-Supply `VERIFY_SHARED_SECRET` securely before starting and use FFmpeg/FFprobe 6.1+ at `/usr/bin`. Optional `PORT` defaults to 8080. Before hosting, follow the actual `backend/verifier/README.md` container/TLS/resource/ingress instructions; local startup is not HTTPS deployment. Never expose storage redirects, private body/header logs or an unauthenticated verifier bypass.
+JPEG/PNG avatars are structurally checked at ≤2 MiB / 2048×2048 and preserve original bytes, MIME and metadata; no decoding, resizing or stripping occurs. The historical `backend/verifier/` tree is unused by publication. Any old `MEDIA_VERIFIER_*` values are unused, not current setup requirements. Never expose storage redirects, private body/header/grant logs or a client verification bypass.
 
 `devices:register({ installationId, token, platform: "ios", notificationsEnabled })` accepts the APNs token's hex encoding, not a delivery claim. `devices:unregister({ installationId })` removes that install. The shipped sender reports unavailable; there is no working remote push provider yet.
 

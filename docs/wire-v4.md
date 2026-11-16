@@ -1,6 +1,6 @@
 # Reals v4 wire contract
 
-These exact shapes were published by the backend owner on November 15, 2026 for the eight-screen mock extension and implemented at `902c8f84c1abf998728e0c5c4b566a614b9e3aca`. Development confirmed that head deployed to first-mandrill-982. Independent live checks cover locks and negative guards without published media, **not every successful response below**. Matching native-artifact and published-content acceptance remain required. Existing Convex Auth, nullable envelopes, receipt rules and media grants remain unchanged.
+These shapes were implemented at `902c8f84c1abf998728e0c5c4b566a614b9e3aca`; Development then deployed `807e0345f80e6f0f91796edc813f13f9c29ad353` with in-Convex media checks. Independent live API checks now cover publication, private intersections/counts/grants, public feeds/likes/comments and battle vote changes/author exclusions. They do **not** establish native-export provenance, rendering, every edge case or deletion cascades. Existing Convex Auth, nullable envelopes and receipt rules remain unchanged; new content has no generated thumbnail.
 
 ## Upload and audience
 
