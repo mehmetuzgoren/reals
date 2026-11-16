@@ -104,6 +104,10 @@ struct InlineNotice: View {
     }
 }
 
+extension String {
+    var isCancellationMessage: Bool { contains("CancellationError") || self == "cancelled" || contains("NSURLErrorDomain error -999") }
+}
+
 extension View {
     func takeScreen() -> some View { self.background(TakeTheme.background).foregroundStyle(TakeTheme.white).toolbarBackground(TakeTheme.background, for: .navigationBar).toolbarColorScheme(.dark, for: .navigationBar) }
     func takeCard() -> some View { self.padding(20).background(TakeTheme.surface, in: RoundedRectangle(cornerRadius: 24)) }

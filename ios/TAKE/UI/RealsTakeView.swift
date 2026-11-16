@@ -147,7 +147,7 @@ struct RealsTakeView: View {
         .fullScreenCover(item: $draft, onDismiss: { Task { await load() } }) { value in
             RealsComposerView(initialDraft: value, round: round).environmentObject(model)
         }
-        .alert("Takes", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Takes", isPresented: Binding(get: { failure != nil && failure?.isCancellationMessage != true }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
     }
@@ -522,7 +522,7 @@ struct RealsVideoSurface: View {
             let grant = try await access.service.playback(contentId: contentID, kind: kind, asset: "video")
             guard epoch == requestEpoch, access.isCurrent(model), scenePhase == .active, !Task.isCancelled else { return }
             guard let url = URL(string: grant.url) else { throw ServiceFailure.notFound }
-            let expiresAt = access.service.isDemo ? nil : Date().addingTimeInterval((grant.expiresAt - access.service.serverNow) / 1_000)
+            let expiresAt = access.service.isDemo ? nil : Date().addingTimeInterval(55)
             ownsPlayback = true
             paused = true
             playback.play(id: playerKey, url: url, expiresAt: expiresAt)

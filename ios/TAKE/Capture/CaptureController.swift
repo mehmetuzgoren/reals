@@ -531,7 +531,7 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let naturalSize = try await sourceVideo.load(.naturalSize)
                 var frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
                 if abs(frame.width) > abs(frame.height) {
-                    transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                    transform = transform.concatenating(CGAffineTransform(rotationAngle: -.pi / 2))
                     frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
                 }
                 let upright = CGSize(width: abs(frame.width).rounded(), height: abs(frame.height).rounded())

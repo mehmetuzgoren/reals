@@ -328,8 +328,7 @@ final class ProductionService: TakeService, LiveAuthenticationService {
         guard asset == "video" || asset == "thumbnail" else { throw ServiceFailure.notFound }
         let grant: PlaybackGrant = try await action("media:createPlaybackGrant", ["contentId": contentId, "kind": kind.rawValue, "asset": asset])
         _ = try configuration.playbackURL(grant.url)
-        guard grant.expiresAt.isFinite, grant.expiresAt > serverNow,
-              grant.expiresAt <= serverNow + 65_000 else {
+        guard grant.expiresAt.isFinite else {
             throw ServiceFailure(code: "INVALID_GRANT", message: "Secure playback expired. Please try again.", retryable: true)
         }
         return grant

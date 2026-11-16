@@ -97,7 +97,7 @@ struct RealsBattleView: View {
         .onChange(of: model.accessRevision) { _, _ in invalidate(); dismiss() }
         .onChange(of: model.today?.round?.id) { _, id in if id != round.id { invalidate(); dismiss() } }
         .onDisappear { invalidate() }
-        .alert("Takes", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Takes", isPresented: Binding(get: { failure != nil && failure?.isCancellationMessage != true }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
     }

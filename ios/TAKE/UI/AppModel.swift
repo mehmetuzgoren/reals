@@ -15,7 +15,7 @@ final class AppModel: ObservableObject {
     @Published var profile: ProfileState?
     @Published var needsOnboarding = false
     @Published var busy = false
-    @Published var error: String?
+    @Published var error: String? { didSet { if error?.isCancellationMessage == true { error = nil } } }
     @Published var generation = UUID()
     @Published private(set) var accessRevision = UUID()
     @Published var recoveredDraft: PublicationDraft?

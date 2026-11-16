@@ -95,7 +95,7 @@ struct RealsCommentsView: View {
                 }
             }
         }
-        .alert("Takes", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Takes", isPresented: Binding(get: { failure != nil && failure?.isCancellationMessage != true }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
     }
