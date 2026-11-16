@@ -142,7 +142,8 @@ export async function seed({ statePath, plan, clipDirectory, friendUsername, vie
       const kind = originalId ? 'reply' : 'original';
       const collection = kind === 'reply' ? record.replies : record.originals;
       if (collection[key]) return collection[key];
-      const args = { requestId: `takes-seed-v2-${round.id}-${key}`.slice(0, 128), kind, roundId: round.id, optionId, originalId, ...(kind === 'original' ? { audience } : {}) };
+      record.attempts ??= {};
+      const args = { requestId: `takes-seed-v2-${round.id}-${key}-${record.attempts[key] ?? 0}`.slice(0, 128), kind, roundId: round.id, optionId, originalId, ...(kind === 'original' ? { audience } : {}) };
       const intent = await api(name, 'mutation', 'uploads:begin', args);
       record.intents[key] = intent.uploadId;
       await save();
@@ -159,6 +160,10 @@ export async function seed({ statePath, plan, clipDirectory, friendUsername, vie
         requireSeed(response.ok, `${clip} upload failed; response withheld`);
       }
       result ??= await api(name, 'action', 'uploads:finalize', { uploadId: intent.uploadId });
+      if (result.state === 'failed' && !result.failure?.retryable) {
+        record.attempts[key] = (record.attempts[key] ?? 0) + 1;
+        await save();
+      }
       requireSeed(result.state === 'published', `${clip} was not published (${result.failure?.code ?? 'incomplete'}); rerun with the same state after fixing it`);
       collection[key] = kind === 'original' ? result.originalId : result.replyId;
       await save();

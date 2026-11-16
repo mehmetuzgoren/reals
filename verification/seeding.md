@@ -15,13 +15,18 @@ It uses only the app's public API: development sign-up/onboarding, friend reques
 
 A plan lists `people` (username, displayName, clip filename, option label or index, `friends` or `public` audience), optional `viewer`, `friends` (all mutual), `replies`, `comments`, `likes` and `votes` (voter, public author). Usernames must be 3–24 lowercase letters, numbers or underscores, so dots become underscores.
 
-Prepare iPhone clips the way the app's export does: portrait H.264 720×1280, one AAC track, faststart MP4, 3–15 seconds and at most 8 MiB. For example:
+Prepare iPhone clips the way the app's export does: portrait H.264 720×1280, one AAC track, faststart MP4, 3–15 seconds and at most 8 MiB. The server's structural check also rejects edit lists that run past the last sample, which ffmpeg's default millisecond movie timescale produces. Encode on whole 0.1-second boundaries with a shared 48 kHz timescale and audio 0.1 s shorter than video, for example a 7.9-second take (237 frames):
 
 ```sh
-ffmpeg -i IN.MOV -map 0:v:0 -map 0:a:0 -t 14.9 -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,fps=30" -c:v libx264 -pix_fmt yuv420p -crf 23 -maxrate 3500k -bufsize 7000k -c:a aac -ac 1 -movflags +faststart -map_metadata -1 OUT.mp4
+ffmpeg -i IN.MOV -map 0:v:0 -map 0:a:0 \
+  -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,fps=30,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=237,setpts=PTS-STARTPTS" \
+  -af "apad,atrim=0:7.8,asetpts=PTS-STARTPTS" \
+  -c:v libx264 -bf 0 -pix_fmt yuv420p -crf 23 -maxrate 3500k -bufsize 7000k \
+  -c:a aac -ar 48000 -ac 1 -video_track_timescale 48000 -movie_timescale 48000 \
+  -movflags +faststart -map_metadata -1 OUT.mp4
 ```
 
-Clips under three seconds need padding (for example `tpad=stop_mode=clone` with `apad`) or the server rejects them. Personal clips are not committed.
+Clips under three seconds are padded by the `tpad`/`apad` hold to 3.2 s; longer clips are cut at 14.9 s like the app. A clip the server rejects is recorded as a failed attempt, so fix it and rerun to post with a fresh request. Personal clips are not committed.
 
 ## Credentials and reruns
 
@@ -33,4 +38,4 @@ The optional `friend_username` makes every posting member of the friend group se
 
 ## Executed seeds
 
-On 2026-11-16 UTC the sample plan populated "Do you like pineapple on pizza?" with six originals, three replies, one comment, four likes and a Jordan/Mira battle with one vote per side. Reruns passed every authenticated readback and added no originals or replies. Existing `qa_reals_a/b/c` content was unchanged. Native rendering, physical capture, round rollover and recipient friend requests are not established by these API results.
+On 2026-11-16 UTC the sample plan populated "Do you like pineapple on pizza?" with six originals, three replies, one comment, four likes and a Jordan/Mira battle with one vote per side. Reruns passed every authenticated readback and added no originals or replies. Existing `qa_reals_a/b/c` content was unchanged. On 2026-11-16 UTC a manual round "Should Jensen have been Ousted from Nvidia?" (Yes/No) was opened with an internal `rounds:plan` call, using a deploy key held only in the runner's environment. The scheduled daily round replaces it at its planned time. The Jensen plan, without its `demo` viewer, then posted thirteen real iPhone takes: five friends-only and eight public, forming three Yes/No battles, with three comments, nine likes and seven votes. A rerun added nothing, and a public playback grant served the uploaded MP4. Native rendering, physical capture, round rollover and recipient friend requests are not established by these API results.
