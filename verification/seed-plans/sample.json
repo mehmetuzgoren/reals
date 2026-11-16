@@ -1,0 +1,104 @@
+{
+  "people": [
+    {
+      "username": "sam",
+      "displayName": "Sam",
+      "clip": "sample-mock.mp4",
+      "option": 0,
+      "audience": "friends"
+    },
+    {
+      "username": "priya",
+      "displayName": "Priya",
+      "clip": "sample-mock.mp4",
+      "option": 1,
+      "audience": "friends"
+    },
+    {
+      "username": "dev",
+      "displayName": "Dev",
+      "clip": "sample-mock.mp4",
+      "option": 0,
+      "audience": "friends"
+    },
+    {
+      "username": "maya",
+      "displayName": "Maya",
+      "clip": "sample-mock.mp4",
+      "option": 1,
+      "audience": "friends"
+    },
+    {
+      "username": "jordan_lee",
+      "displayName": "Jordan Lee",
+      "clip": "sample-mock.mp4",
+      "option": 0,
+      "audience": "public"
+    },
+    {
+      "username": "mira_k",
+      "displayName": "Mira",
+      "clip": "sample-mock.mp4",
+      "option": 1,
+      "audience": "public"
+    }
+  ],
+  "friends": [
+    "sam",
+    "priya",
+    "dev",
+    "maya"
+  ],
+  "replies": [
+    {
+      "author": "priya",
+      "parent": "sam",
+      "clip": "sample-mock.mp4"
+    },
+    {
+      "author": "dev",
+      "parent": "sam",
+      "clip": "sample-mock.mp4"
+    },
+    {
+      "author": "maya",
+      "parent": "sam",
+      "clip": "sample-mock.mp4"
+    }
+  ],
+  "comments": [
+    {
+      "author": "dev",
+      "parent": "sam",
+      "text": "I see your point, but I am still taking the other side."
+    }
+  ],
+  "likes": [
+    [
+      "priya",
+      "sam"
+    ],
+    [
+      "dev",
+      "sam"
+    ],
+    [
+      "maya",
+      "priya"
+    ],
+    [
+      "sam",
+      "jordan_lee"
+    ]
+  ],
+  "votes": [
+    [
+      "sam",
+      "jordan_lee"
+    ],
+    [
+      "priya",
+      "mira_k"
+    ]
+  ]
+}
