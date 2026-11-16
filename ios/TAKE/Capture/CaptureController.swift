@@ -403,6 +403,9 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
             let url = self.directory.appendingPathComponent("\(UUID().uuidString).mov")
             self.ownedFiles.insert(url)
             self.recording = Recording(id: id, url: url, createdAt: Date())
+            if let connection = self.output.connection(with: .video), connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
             self.output.startRecording(to: url, recordingDelegate: self)
         }
     }
@@ -524,9 +527,13 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                     throw CaptureFailure("Your take needs playable video and sound. Please record it again.")
                 }
                 let sourceVideo = video[0]
-                let transform = try await sourceVideo.load(.preferredTransform)
+                var transform = try await sourceVideo.load(.preferredTransform)
                 let naturalSize = try await sourceVideo.load(.naturalSize)
-                let frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
+                var frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
+                if abs(frame.width) > abs(frame.height) {
+                    transform = transform.concatenating(CGAffineTransform(rotationAngle: .pi / 2))
+                    frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
+                }
                 let upright = CGSize(width: abs(frame.width).rounded(), height: abs(frame.height).rounded())
                 guard upright.height > upright.width else {
                     throw CaptureFailure("Your take wasn't recorded upright. Hold your iPhone in portrait and try again.")
