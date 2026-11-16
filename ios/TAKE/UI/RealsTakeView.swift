@@ -510,6 +510,13 @@ struct RealsVideoSurface: View {
     private func requestPlayback() async {
         guard let access = RealsContentAccess(model: model, roundID: roundID), scenePhase == .active else { return }
         let epoch = UUID(); requestEpoch = epoch
+        if let file = VideoPrefetch.file(for: contentID) {
+            ownsPlayback = true
+            paused = true
+            playback.play(id: playerKey, url: file)
+            if playback.player != nil { paused = false }
+            return
+        }
         requesting = true
         do {
             let grant = try await access.service.playback(contentId: contentID, kind: kind, asset: "video")

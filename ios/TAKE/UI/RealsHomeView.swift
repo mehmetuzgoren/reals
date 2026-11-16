@@ -144,6 +144,18 @@ struct RealsHomeView: View {
                 }
             })
         }
+        .task(id: (model.feed + model.publicFeed).map(\.id)) { await prefetchAll() }
+    }
+
+    private func prefetchAll() async {
+        guard !model.isDemo, let service = model.service else { return }
+        let viewer = model.viewer?.id
+        for original in model.feed + model.publicFeed where original.author.id != viewer && VideoPrefetch.file(for: original.id) == nil {
+            guard !Task.isCancelled else { return }
+            guard let grant = try? await service.playback(contentId: original.id, kind: .original, asset: "video"),
+                  let url = URL(string: grant.url), url.scheme == "https" else { continue }
+            _ = try? await VideoPrefetch.fetch(id: original.id, url: url)
+        }
     }
 
     private func loadMore() {
@@ -269,7 +281,8 @@ private struct RealsFeedCard: View {
         do {
             let grant = try await service.playback(contentId: original.id, kind: .original, asset: "video")
             guard model.isCurrentAccess(generation: epoch, revision: revision), grant.expiresAt > service.serverNow, let url = URL(string: grant.url), url.scheme == "https" else { return }
-            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            let file = try await VideoPrefetch.fetch(id: original.id, url: url)
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: file))
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: 720, height: 720)
             let (frame, _) = try await generator.image(at: CMTime(seconds: 0.5, preferredTimescale: 600))

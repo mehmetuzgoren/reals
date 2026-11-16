@@ -3,6 +3,36 @@ import Combine
 import UIKit
 
 @MainActor
+enum VideoPrefetch {
+    private static var files: [String: URL] = [:]
+    private static var pending: [String: Task<URL, Error>] = [:]
+    private static let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TakesVideos", isDirectory: true)
+
+    static func file(for id: String) -> URL? {
+        guard let file = files[id], FileManager.default.fileExists(atPath: file.path) else { return nil }
+        return file
+    }
+
+    static func fetch(id: String, url: URL) async throws -> URL {
+        if let file = file(for: id) { return file }
+        if let task = pending[id] { return try await task.value }
+        let task = Task<URL, Error> {
+            let (download, response) = try await URLSession.shared.download(from: url)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let file = directory.appendingPathComponent("\(UUID().uuidString).mp4")
+            try FileManager.default.moveItem(at: download, to: file)
+            return file
+        }
+        pending[id] = task
+        defer { pending[id] = nil }
+        let file = try await task.value
+        files[id] = file
+        return file
+    }
+}
+
+@MainActor
 final class PlaybackCoordinator: ObservableObject {
     static let shared = PlaybackCoordinator()
 
