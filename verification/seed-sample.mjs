@@ -43,6 +43,7 @@ export function validatePlan(plan) {
 
 export async function seed({ statePath, plan, clipDirectory, friendUsername, viewerPassword, fetcher = fetch }) {
   const people = validatePlan(plan);
+  if (plan.viewer) requireSeed(viewerPassword?.length >= 10, 'Set TAKES_VIEWER_PASSWORD (at least 10 characters) for the viewer account');
   statePath = resolve(statePath);
   const repository = await realpath(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
   const guardPath = path => requireSeed(!path.startsWith(`${repository}/`) && !path.includes('/.capy/drive/'), 'Keep seed credentials outside the repository and Drive');
@@ -58,7 +59,6 @@ export async function seed({ statePath, plan, clipDirectory, friendUsername, vie
     requireSeed(bytes.length > 0 && bytes.length <= 8 * 1024 * 1024, `${name} must be 1 byte to 8 MiB`);
     clips.set(name, bytes);
   }
-  if (plan.viewer) requireSeed(viewerPassword?.length >= 10, 'Set TAKES_VIEWER_PASSWORD (at least 10 characters) for the viewer account');
   const lock = await open(`${statePath}.lock`, 'wx', 0o600);
   let state;
   const save = async () => {

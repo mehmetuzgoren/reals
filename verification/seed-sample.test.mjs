@@ -40,7 +40,7 @@ test('a viewer account requires a supplied password before network access', asyn
   const directory = await mkdtemp(join(tmpdir(), 'takes-seed-test-'));
   try {
     const plan = { ...(await load('sample')), viewer: { username: 'viewer_x', displayName: 'Viewer' } };
-    await assert.rejects(seed({ plan, statePath: join(directory, 'state.json'), clipDirectory: '/home/user/.capy/work/REAL-7/media-fixtures', fetcher: never }), /TAKES_VIEWER_PASSWORD/);
+    await assert.rejects(seed({ plan, statePath: join(directory, 'state.json'), clipDirectory: '/missing', fetcher: never }), /TAKES_VIEWER_PASSWORD/);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
