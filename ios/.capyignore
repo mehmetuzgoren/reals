@@ -1,0 +1,4 @@
+build
+DerivedData
+*.local.xcconfig
+*.xcresult

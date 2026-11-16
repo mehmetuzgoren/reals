@@ -1,0 +1,5 @@
+CONVEX_URL =
+CONVEX_SITE_URL =
+PRODUCT_BUNDLE_IDENTIFIER = com.take.app
+DEVELOPMENT_TEAM =
+#include? "Public.local.xcconfig"
