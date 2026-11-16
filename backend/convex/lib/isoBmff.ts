@@ -377,7 +377,7 @@ export function inspectVideo(bytes: ArrayBuffer) {
       r.need(entry.data, 78, entry.end);
       const codedWidth = r.u16(entry.data + 24), codedHeight = r.u16(entry.data + 26);
       const width = header.rotated ? codedHeight : codedWidth, height = header.rotated ? codedWidth : codedHeight;
-      if (!width || !height || width > 2160 || height > 4096 || height <= width || codedWidth * codedHeight > 2160 * 4096) invalid();
+      if (!width || !height || Math.min(width, height) > 2160 || Math.max(width, height) > 4096 || codedWidth * codedHeight > 2160 * 4096) invalid();
       hevc = entry.type === "hvc1" || entry.type === "hev1";
       const nested = r.boxes(entry.data + 78, entry.end), pasp = optional(nested, "pasp");
       if (pasp && (pasp.end - pasp.data !== 8 || !r.u32(pasp.data) || r.u32(pasp.data) !== r.u32(pasp.data + 4))) invalid();

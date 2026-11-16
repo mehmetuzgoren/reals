@@ -149,7 +149,7 @@ export const commit = internalMutation({ args: {
   let invalid: Failure | null = null;
   if (upload.expiresAt <= Date.now()) invalid = { code: "UPLOAD_EXPIRED", message: "Upload expired", retryable: false };
   if (!upload.storageId || args.sha256 !== upload.sha256 || !Number.isFinite(args.durationMs) || args.durationMs < MIN_DURATION_MS || args.durationMs > MAX_DURATION_MS ||
-    !Number.isInteger(args.width) || !Number.isInteger(args.height) || args.width <= 0 || args.height <= args.width || args.height > 4096 || args.width > 2160) invalid = { code: "INVALID_MEDIA", message: "A valid portrait video between 3 and 15 seconds is required", retryable: false };
+    !Number.isInteger(args.width) || !Number.isInteger(args.height) || args.width <= 0 || args.height <= 0 || Math.max(args.width, args.height) > 4096 || Math.min(args.width, args.height) > 2160) invalid = { code: "INVALID_MEDIA", message: "A valid video between 3 and 15 seconds is required", retryable: false };
   if (!invalid) {
     try { await eligible(ctx, user, upload); }
     catch (error) {

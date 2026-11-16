@@ -535,9 +535,6 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                     frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
                 }
                 let upright = CGSize(width: abs(frame.width).rounded(), height: abs(frame.height).rounded())
-                guard upright.height > upright.width else {
-                    throw CaptureFailure("Your take wasn't recorded upright. Hold your iPhone in portrait and try again.")
-                }
                 let instruction = AVMutableVideoCompositionInstruction()
                 instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
                 let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: sourceVideo)
@@ -574,10 +571,6 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let finalAudio = try await result.loadTracks(withMediaType: .audio)
                 guard let videoTrack = finalVideo.first, let audioTrack = finalAudio.first else {
                     throw CaptureFailure("Your take is missing video or sound. Please record it again.")
-                }
-                let finalSize = try await videoTrack.load(.naturalSize).applying(try await videoTrack.load(.preferredTransform))
-                guard abs(finalSize.height) > abs(finalSize.width) else {
-                    throw CaptureFailure("Your take couldn't be saved upright. Please try again.")
                 }
                 let videoFormats = try await videoTrack.load(.formatDescriptions)
                 let audioFormats = try await audioTrack.load(.formatDescriptions)
