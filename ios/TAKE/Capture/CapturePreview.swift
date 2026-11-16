@@ -32,11 +32,29 @@ struct CapturePreview: UIViewRepresentable {
 final class CameraPreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    private var observers: [NSObjectProtocol] = []
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        for name in [AVCaptureSession.didStartRunningNotification, AVCaptureInput.Port.formatDescriptionDidChangeNotification] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applyPortrait() }
+            })
+        }
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        applyPortrait()
+    }
+
+    private func applyPortrait() {
         guard let connection = previewLayer.connection else { return }
-        if connection.isVideoRotationAngleSupported(90) {
+        if connection.isVideoRotationAngleSupported(90), connection.videoRotationAngle != 90 {
             connection.videoRotationAngle = 90
         }
         if connection.isVideoMirroringSupported {

@@ -46,7 +46,7 @@ final class CaptureController: NSObject, ObservableObject {
                 guard let self else { return }
                 switch self.state {
                 case .preparing, .ready, .recording, .exporting:
-                    self.fail("Recording stopped when Reals went into the background. Please try again.")
+                    self.fail("Recording stopped when Takes went into the background. Please try again.")
                     self.engine.reset()
                 case .idle, .preview, .failed:
                     break
@@ -99,7 +99,7 @@ final class CaptureController: NSObject, ObservableObject {
             return
         }
         guard !Task.isCancelled, UIApplication.shared.applicationState == .active else {
-            fail("Return to Reals and try recording again.")
+            fail("Return to Takes and try recording again.")
             return
         }
 
@@ -108,7 +108,7 @@ final class CaptureController: NSObject, ObservableObject {
             guard generation == id else { return }
             if Task.isCancelled || UIApplication.shared.applicationState != .active {
                 engine.reset()
-                fail("Return to Reals and try recording again.")
+                fail("Return to Takes and try recording again.")
                 return
             }
             state = .ready
@@ -523,6 +523,24 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                       exporter.supportedFileTypes.contains(.mp4) else {
                     throw CaptureFailure("Your take needs playable video and sound. Please record it again.")
                 }
+                let sourceVideo = video[0]
+                let transform = try await sourceVideo.load(.preferredTransform)
+                let naturalSize = try await sourceVideo.load(.naturalSize)
+                let frame = CGRect(origin: .zero, size: naturalSize).applying(transform)
+                let upright = CGSize(width: abs(frame.width).rounded(), height: abs(frame.height).rounded())
+                guard upright.height > upright.width else {
+                    throw CaptureFailure("Your take wasn't recorded upright. Hold your iPhone in portrait and try again.")
+                }
+                let instruction = AVMutableVideoCompositionInstruction()
+                instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
+                let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: sourceVideo)
+                layer.setTransform(transform.concatenating(CGAffineTransform(translationX: -frame.minX, y: -frame.minY)), at: .zero)
+                instruction.layerInstructions = [layer]
+                let orientation = AVMutableVideoComposition()
+                orientation.renderSize = upright
+                orientation.frameDuration = CMTime(value: 1, timescale: 30)
+                orientation.instructions = [instruction]
+                exporter.videoComposition = orientation
                 exporter.outputURL = url
                 exporter.outputFileType = .mp4
                 exporter.shouldOptimizeForNetworkUse = true
@@ -549,6 +567,10 @@ private final class CaptureEngine: NSObject, AVCaptureFileOutputRecordingDelegat
                 let finalAudio = try await result.loadTracks(withMediaType: .audio)
                 guard let videoTrack = finalVideo.first, let audioTrack = finalAudio.first else {
                     throw CaptureFailure("Your take is missing video or sound. Please record it again.")
+                }
+                let finalSize = try await videoTrack.load(.naturalSize).applying(try await videoTrack.load(.preferredTransform))
+                guard abs(finalSize.height) > abs(finalSize.width) else {
+                    throw CaptureFailure("Your take couldn't be saved upright. Please try again.")
                 }
                 let videoFormats = try await videoTrack.load(.formatDescriptions)
                 let audioFormats = try await audioTrack.load(.formatDescriptions)

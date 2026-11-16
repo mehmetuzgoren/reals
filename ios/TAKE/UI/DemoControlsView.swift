@@ -54,7 +54,7 @@ struct DemoControlsView: View {
             .scrollContentBackground(.hidden).takeScreen().navigationTitle("Demo lab").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
-        .confirmationDialog("Reset the demo?", isPresented: $resetConfirmation, titleVisibility: .visible) { Button("Reset samples and local changes", role: .destructive) { Task { await model.resetDemo(); dismiss() } } } message: { Text("This restores this offline scenario's sample clips and relationships. It doesn't touch live Reals data.") }
+        .confirmationDialog("Reset the demo?", isPresented: $resetConfirmation, titleVisibility: .visible) { Button("Reset samples and local changes", role: .destructive) { Task { await model.resetDemo(); dismiss() } } } message: { Text("This restores this offline scenario's sample clips and relationships. It doesn't touch live Takes data.") }
     }
     private func release(_ number: Int) { model.demo?.releaseRound(number); PlaybackCoordinator.shared.clear(); Task { await model.refresh(); dismiss() } }
 }

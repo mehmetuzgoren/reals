@@ -243,7 +243,7 @@ final class AppModel: ObservableObject {
                 do {
                     if !FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.copyItem(at: clip.url, to: destination) }
                     draft.clip = RecordedClip(url: destination, durationMs: clip.durationMs, source: clip.source, createdAt: clip.createdAt)
-                } catch { self.error = "Couldn't save this draft. Keep Reals open and try again." }
+                } catch { self.error = "Couldn't save this draft. Keep Takes open and try again." }
             }
         }
         if let data = try? JSONEncoder().encode(draft) { try? data.write(to: directory.appendingPathComponent("draft.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) }
@@ -288,7 +288,7 @@ final class AppModel: ObservableObject {
 
     func publish(_ initial: PublicationDraft, update: @escaping (PublicationDraft, Double) -> Void) async throws -> PublicationDraft {
         guard let service, initial.ownerId == service.viewerID, initial.isDemo == service.isDemo, let clip = initial.clip else { throw ServiceFailure.notFound }
-        guard service.isDemo || clip.source == .camera else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require a video recorded in Reals.", retryable: false) }
+        guard service.isDemo || clip.source == .camera else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Live takes require a video recorded in Takes.", retryable: false) }
         guard clip.durationMs.isFinite, (3_000...15_000).contains(clip.durationMs) else { throw ServiceFailure(code: "INVALID_MEDIA", message: "Record between 3 and 15 seconds.", retryable: false) }
         var draft = saveDraft(initial)
         let epoch = generation

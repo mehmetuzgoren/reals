@@ -52,7 +52,7 @@ struct WelcomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                Text("Reals").font(.system(size: 40, weight: .bold)).tracking(-1).padding(.top, 150).padding(.bottom, 160)
+                Text("Takes").font(.system(size: 40, weight: .bold)).tracking(-1).padding(.top, 150).padding(.bottom, 160)
                 BrowserAppleSignInButton {
                     Task {
                         signingIn = true

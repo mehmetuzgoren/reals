@@ -34,8 +34,8 @@ struct RealsHomeView: View {
 
     private var header: some View {
         ZStack {
-            Text("Reals").font(.system(size: 20, weight: .bold))
-                .accessibilityIdentifier("Reals")
+            Text("Takes").font(.system(size: 20, weight: .bold))
+                .accessibilityIdentifier("Takes")
                 .onLongPressGesture(minimumDuration: 0.7) { if model.isDemo { showDemo = true } }
             HStack {
                 Spacer()

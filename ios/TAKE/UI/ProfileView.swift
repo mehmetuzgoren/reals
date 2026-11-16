@@ -58,7 +58,7 @@ struct ProfileView: View {
                         row("Sign out", symbol: "rectangle.portrait.and.arrow.right") { showSignOut = true }
                         row(deleting ? "Deleting account…" : "Delete account", symbol: "trash", color: TakeTheme.white) { showDeletion = true }
                     }.padding(8).background(TakeTheme.surface, in: RoundedRectangle(cornerRadius: 24))
-                    Text("Reals").font(.caption).foregroundStyle(TakeTheme.muted).frame(maxWidth: .infinity).padding(.bottom, 20)
+                    Text("Takes").font(.caption).foregroundStyle(TakeTheme.muted).frame(maxWidth: .infinity).padding(.bottom, 20)
                 } else { ProgressView().frame(maxWidth: .infinity).padding(40) }
             }.padding(24)
         }
@@ -80,7 +80,7 @@ struct ProfileView: View {
             Button("Not now", role: .cancel) {}
             Button("Enable notifications") { Task { if model.isDemo { model.error = "Demo Mode stays offline and doesn't register push tokens. Your preferences are saved only in this demo." } else { await NotificationCoordinator.shared.requestPermission() } } }
         } message: { Text("We'll ask iOS to allow the daily prompt and eligible direct replies. You can say no and still post whenever the question is open.") }
-        .confirmationDialog("Sign out of Reals?", isPresented: $showSignOut, titleVisibility: .visible) { Button("Sign out", role: .destructive) { Task { await model.signOut() } } } message: { Text("Private playback and subscriptions will be cleared. Your local retry draft will be removed from this device.") }
+        .confirmationDialog("Sign out of Takes?", isPresented: $showSignOut, titleVisibility: .visible) { Button("Sign out", role: .destructive) { Task { await model.signOut() } } } message: { Text("Private playback and subscriptions will be cleared. Your local retry draft will be removed from this device.") }
         .confirmationDialog("Delete your account and videos?", isPresented: $showDeletion, titleVisibility: .visible) { Button("Delete account permanently", role: .destructive) { Task { await deleteAccount() } } } message: { Text(model.isDemo ? "This removes this fictional identity's content and relationships in the offline demo. You can restore all sample data with Reset Demo." : "Your videos and social relationships will be removed. This can't be undone. A recent Apple sign-in may be required.") }
     }
     private var notificationSummary: String {

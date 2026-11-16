@@ -135,7 +135,7 @@ struct RealsTakeView: View {
         .fullScreenCover(item: $battle, onDismiss: { Task { await load() } }) { destination in
             RealsBattleView(battleID: destination.id, round: round).environmentObject(model)
         }
-        .alert("Reals", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+        .alert("Takes", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
     }

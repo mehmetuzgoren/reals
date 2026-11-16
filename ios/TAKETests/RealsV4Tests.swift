@@ -517,6 +517,10 @@ final class RealsExportPathTests: XCTestCase {
         XCTAssertLessThan(moov.lowerBound, mdat.lowerBound, "export must be fast-start")
 
         let size = try await video.load(.naturalSize)
+        let transform = try await video.load(.preferredTransform)
+        XCTAssertTrue(transform.isIdentity, "export must bake orientation into the pixels")
+        XCTAssertEqual(Int(size.width), 720)
+        XCTAssertEqual(Int(size.height), 1280)
         print("REALS_EXPORT_INFO bytes=\(data.count) duration=\(duration) size=\(Int(size.width))x\(Int(size.height))")
         let encoded = data.base64EncodedString()
         var index = 0

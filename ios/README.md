@@ -1,16 +1,16 @@
-# Reals for iPhone
+# Takes for iPhone
 
 Native SwiftUI, iOS 18+, AVFoundation/AVKit, Convex Auth and application services. Open **TAKE.xcodeproj** and select the shared **TAKE** scheme. The project is checked in: no generator, CocoaPods, Node, or backend deployment is needed to build the offline app.
 
 ## Run offline
 
-Launch the app and choose **Try the demo**. The default offline scenario opens on “Is a hot dog a sandwich?” with Yes and No choices. The visible product is **Reals**; internal project and scheme names remain TAKE. The eight-mock flow has no bottom tab bar: vote, record, post, browse My friends or For You, open a take or reply, and view a public battle. Demo startup never creates Convex clients or registers push tokens. Demo data and drafts are isolated from live storage; sign-out and reset do not erase live data.
+Launch the app and choose **Try the demo**. The default offline scenario opens on “Is a hot dog a sandwich?” with Yes and No choices. The visible product is **Takes**; internal project and scheme names remain TAKE. The eight-mock flow has no bottom tab bar: vote, record, post, browse My friends or For You, open a take or reply, and view a public battle. Demo startup never creates Convex clients or registers push tokens. Demo data and drafts are isolated from live storage; sign-out and reset do not erase live data.
 
-Select an answer to open Record. On a simulator without a camera, long-press the shutter and explicitly consent to the labeled fictional four-second sample before previewing and posting it. On hardware, use the front camera and microphone for a genuine recording. The post step defaults **Share to For You** off. Only a confirmed publication unlocks the round; failed uploads keep a retry draft rather than granting a receipt.
+Select an answer to open Record. On a simulator without a camera, long-press the shutter and explicitly consent to the labeled fictional four-second sample before previewing and posting it. On hardware, use the front camera and microphone for a genuine recording. The post step defaults **Share Publicly** off. Only a confirmed publication unlocks the round; failed uploads keep a retry draft rather than granting a receipt.
 
 The mock scenario seeds real local social records rather than decorative counts: Sam has 3 likes, 1 comment and 3 replies; Priya has 5 likes, 2 comments and no replies; public Jordan has 248 likes, 56 comments and 14 replies, with a battle against mira_k. Likes, comments and battle votes update demo data. Public and private visibility still follows the viewer's receipt and access rules.
 
-Long-press the **Reals** title in demo to open the hidden lab and switch to the legacy rounds and privacy matrix. The legacy `--demo --reset-demo` route remains available for regression testing: Casey/Dana, the pineapple round, relationship changes, failed-upload recovery and subsequent-round relocking remain isolated from the mock scenario. Bundled clips are fictional samples with synthetic sound, not camera footage; explicit consent is required, and fixture provenance is rejected by live publication. See Resources/Samples.md.
+Long-press the **Takes** title in demo to open the hidden lab and switch to the legacy rounds and privacy matrix. The legacy `--demo --reset-demo` route remains available for regression testing: Casey/Dana, the pineapple round, relationship changes, failed-upload recovery and subsequent-round relocking remain isolated from the mock scenario. Bundled clips are fictional samples with synthetic sound, not camera footage; explicit consent is required, and fixture provenance is rejected by live publication. See Resources/Samples.md.
 
 ## Build and test
 
@@ -46,9 +46,9 @@ A free Apple ID is enough. You need a Mac with the latest Xcode and an iPhone on
    ```
    `com.take.app` is only the default. You don't need to change project settings; automatic signing creates the free provisioning profile.
 6. Open **TAKE.xcodeproj**, pick the **TAKE** scheme and your iPhone as the run destination, and press **Run**.
-7. The first launch is blocked until you trust yourself as the developer: open **Settings → General → VPN & Device Management**, tap your Apple ID under *Developer App*, tap **Trust**, then open Reals again.
+7. The first launch is blocked until you trust yourself as the developer: open **Settings → General → VPN & Device Management**, tap your Apple ID under *Developer App*, tap **Trust**, then open Takes again.
 
-Apps signed by a free account stop launching 7 days after installation. Run from Xcode again to reinstall; free accounts are also limited to a few sideloaded apps at a time. Reals doesn't need the Sign in with Apple or push capabilities that free accounts can't sign: Apple sign-in runs as browser OAuth. **Try the demo** works offline, the camera records real takes on the phone, and the Debug build talks to the development deployment described below.
+Apps signed by a free account stop launching 7 days after installation. Run from Xcode again to reinstall; free accounts are also limited to a few sideloaded apps at a time. Takes doesn't need the Sign in with Apple or push capabilities that free accounts can't sign: Apple sign-in runs as browser OAuth. **Try the demo** works offline, the camera records real takes on the phone, and the Debug build talks to the development deployment described below.
 
 ## Configure live services
 

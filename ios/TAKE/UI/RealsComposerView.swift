@@ -96,7 +96,7 @@ struct RealsComposerView: View {
         .confirmationDialog("Use a demo sample?", isPresented: $showSampleConfirmation, titleVisibility: .visible) {
             Button("Use labeled 4-second sample") { useSample() }.accessibilityIdentifier("Use labeled 4-second sample")
         } message: {
-            Text("This is bundled fictional video with synthetic sound, not a camera recording. It stays in Demo Mode and can never be sent to live Reals.")
+            Text("This is bundled fictional video with synthetic sound, not a camera recording. It stays in Demo Mode and can never be sent to live Takes.")
         }
         .confirmationDialog("Keep this recording?", isPresented: $showDiscard, titleVisibility: .visible) {
             Button("Save draft and close") {
@@ -196,7 +196,7 @@ struct RealsComposerView: View {
     private var postControls: some View {
         VStack(alignment: .leading, spacing: 16) {
             if draft.kind == .original {
-                Toggle("Share to For You", isOn: Binding(get: { draft.audience == .public }, set: { share in
+                Toggle("Share Publicly", isOn: Binding(get: { draft.audience == .public }, set: { share in
                     guard currentIdentity, !publishing, draft.uploadId == nil else { return }
                     draft.audience = share ? .public : .friends
                     draft = model.saveDraft(draft)
