@@ -69,7 +69,7 @@ At current `807e034`, the source owner reports strict Convex analysis/codegen, T
 
 This thread previously executed backend `fbb0033da8108b2e9b4b51d77eb01bb19b3548fb`: typecheck +43 tests and 3 actual authenticated HTTP-worker/FFmpeg integrations, Node 24.22.3 / FFmpeg 6.1.1. Worker 61 passed at `468c817` and its tree was unchanged at `fbb0033`. These older identity-based snapshots do not establish current Convex Auth or v4 correctness.
 
-Current tooling: **26/26** local tests, with 12 boundary/denial-envelope regressions added since the earlier 14-test checkpoint; the fake transport checks tooling only. The existing 25-assertion mock privacy transport and 189 historical DTO mutations are not hosted product results. CI runs tooling without secrets; backend CI skips this docs-only checkout. Current-push CI/review is recorded in the PR, not assumed from earlier green runs.
+Current tooling: **26/26** local tests, with 12 boundary/denial-envelope regressions added since the earlier 14-test checkpoint; the fake transport checks tooling only. The existing 25-assertion mock privacy transport and 189 historical DTO mutations are not hosted product results. CI runs tooling without secrets; its backend job runs when source is present, including the merged base, and otherwise explicitly skips. That checkout may differ from deployed `807e034`. Current-push CI/review is recorded in the PR, not assumed from earlier green runs.
 
 ## Cloud-iPhone evidence and next pass
 

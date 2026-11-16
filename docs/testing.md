@@ -20,7 +20,7 @@ Separately, authorized QA accounts passed 19 bootstrap assertions, then **86 sig
 
 At deployed `807e034`, a separate three-account matrix and two follow-ups passed **84 hosted scenarios plus one local fixture check** (73 main +6 public playback/expiry +5 post-response revocation timing). They published through begin → bearer-authenticated raw POST → finalize, rejected one-second/non-MP4 media, verified receipts/unlock, existing private reply/comment intersections/counts, exact private/public GET/HEAD/Range, friendship-removal revocation, For You/likes/comments and battle vote changes/author denial. Revocation responses retained over 59 seconds of grant life; expiry was separately awaited. The bundled fixture is synthetic, not an AVAssetExportSession or physical-camera output. QA content remains; A/B finish friends and C unrelated. See [status](verification-status.md) for exact boundaries.
 
-CI runs local tooling; it does not call the live deployment. If backend source exists in a combined checkout, CI runs local backend/worker tests; on this docs-only branch it explicitly skips that job. A skipped job is not product evidence.
+CI runs local tooling, not the live deployment. When the checkout contains backend source, including source supplied by the PR's merged base, CI also runs local backend/worker tests; otherwise it explicitly skips that job. Record the actual tested checkout, not the separately deployed backend SHA. A skipped job is not product evidence.
 
 ## Backend and native source
 
