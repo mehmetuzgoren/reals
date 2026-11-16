@@ -1,4 +1,4 @@
-# Independent Reals acceptance matrix
+# Independent Takes acceptance matrix
 
 These are required outcomes, not completed checkboxes. Use dedicated staging for destructive server cases and isolated Demo for fictional UI. Record source/build/command evidence for every executed row. “Boundary probe” means `deployment-probe.mjs`; “privacy probe” means the authenticated `take-probe.mjs`, not their fake transports. A separate three-account matrix at [deployed `807e034`](../docs/verification-status.md) now covers published private/public API scenarios; it does not clear every row or native/hardware acceptance.
 

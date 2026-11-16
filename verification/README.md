@@ -1,4 +1,6 @@
-# Independent Reals probes
+# Independent Takes probes
+
+For live sample accounts and repeatable per-round posts, see [sample seeding](seeding.md). Unlike the read-only probes below, that script deliberately creates development content through the real app API.
 
 Both Node 24 runners use real HTTPS endpoints, refuse redirects and log static scenario IDs plus PASS/FAIL only. They never log credentials, IDs, response bodies, grants, private metadata or fixture names. Fake transports in unit tests verify the tools, not the product.
 

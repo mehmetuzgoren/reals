@@ -1,4 +1,4 @@
-# Reals verification status
+# Takes verification status
 
 ## Current truth — November 15, 2026
 

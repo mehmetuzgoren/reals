@@ -1,4 +1,4 @@
-# Reals privacy and product invariants
+# Takes privacy and product invariants
 
 These are acceptance requirements, not claims that every lane has passed. Backend `807e034` runs in-Convex structural media checks. Independent live API evidence now includes publication receipts, existing private-content intersections/counts, grant delivery/removal revocation and successful [v4 interactions](wire-v4.md). It uses synthetic bundled MP4 bytes, not a native-export or physical-camera artifact. See the [acceptance matrix](../verification/acceptance.md).
 
@@ -26,7 +26,7 @@ Return viewer-filtered replies and counts. Known-ID queries, captions, grants, b
 
 ## Accepted v4 public and social rules
 
-“Share to For You” is off by default. An original's audience is immutable `friends` or `public`. Replies cannot choose an audience; they inherit the parent. Public does **not** mean logged-out: viewers still need the same-round receipt and no block with the author of each visible original/reply/comment/battle side.
+“Share Publicly” is off by default. An original's audience is immutable `friends` or `public`. Replies cannot choose an audience; they inherit the parent. Public does **not** mean logged-out: viewers still need the same-round receipt and no block with the author of each visible original/reply/comment/battle side.
 
 For You returns public originals only, newest first, excluding the viewer's own content and blocks. Friends-only content must never enter For You, a battle, direct-ID public access or public media grants. Comments on friends-only content use the author/commenter relationship intersection, so their visible counts cannot reveal hidden comments. Public comments still exclude blocks.
 

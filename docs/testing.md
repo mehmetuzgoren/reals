@@ -1,4 +1,4 @@
-# Reals verification lanes
+# Takes verification lanes
 
 Record the exact source, command, artifact and device for each result. A tool test is not a product test; a cloud fixture is not a physical recording. [Verification status](verification-status.md) separates current and historical evidence.
 

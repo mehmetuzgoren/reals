@@ -1,6 +1,6 @@
-# Reals setup
+# Takes setup
 
-Use the native/backend PR checkout for its commands; this docs-only branch contains neither implementation. [Verification status](verification-status.md) records exact heads. Reals is the product name; the current Xcode target, storage paths and bundle identifier may retain internal `TAKE` names. The eight-screen replacement UI is pending its own build, not established by older demo screenshots.
+Use the native/backend PR checkout for its commands; this docs-only branch contains neither implementation. [Verification status](verification-status.md) records exact heads. Takes is the product name; the current Xcode target, storage paths and bundle identifier may retain internal `TAKE` names. The eight-screen replacement UI is pending its own build, not established by older demo screenshots.
 
 ## Native offline demo
 
@@ -15,7 +15,7 @@ TAKE_TEST_DESTINATION="platform=iOS Simulator,id=$SIM_ID" bash scripts/test-simu
 
 Choose a runtime/UUID actually installed on your Mac. Scripts build arm64; output is `build/Build/Products/Debug-iphonesimulator/TAKE.app` and test results are `build/TAKE-tests.xcresult`. A build is not a test pass.
 
-At auth source `027d488`, choose **Explore Demo Mode**, then Casey's pineapple option → Give your take → scroll to Use simulator sample instead → confirm the labeled four-second fixture → preview → publish. The existing Demo lab switches Casey/Dana, releases the Elon round and injects upload failure. The new mock-exact version instead starts on “Is a hot dog a sandwich?”, opens Record directly from Yes/No, removes the tab bar and exposes old privacy rounds by long-pressing **Reals**. Those are replacement-build acceptance requirements, not this source's observed behavior.
+At auth source `027d488`, choose **Explore Demo Mode**, then Casey's pineapple option → Give your take → scroll to Use simulator sample instead → confirm the labeled four-second fixture → preview → publish. The existing Demo lab switches Casey/Dana, releases the Elon round and injects upload failure. The new mock-exact version instead starts on “Is a hot dog a sandwich?”, opens Record directly from Yes/No, removes the tab bar and exposes old privacy rounds by long-pressing **Takes**. Those are replacement-build acceptance requirements, not this source's observed behavior.
 
 Illustrated samples and synthetic tones are fictional, not camera recordings or spoken testimony. Demo data/drafts use Application Support/TAKE/Demo and DemoDrafts; viewer-bound live drafts use LiveDrafts. Production rejects fixture provenance. Unconfigured demo launch has been observed; network-denied operation is a separate unexecuted lane.
 

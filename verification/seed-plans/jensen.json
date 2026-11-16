@@ -1,0 +1,193 @@
+{
+  "question": "Should Jensen have been Ousted from Nvidia?",
+  "viewer": {
+    "username": "demo",
+    "displayName": "Demo"
+  },
+  "people": [
+    {
+      "username": "marcus",
+      "displayName": "Marcus",
+      "clip": "FullSizeRender-3.mp4",
+      "option": "Yes",
+      "audience": "friends"
+    },
+    {
+      "username": "owen",
+      "displayName": "Owen",
+      "clip": "IMG_4222.mp4",
+      "option": "Yes",
+      "audience": "friends"
+    },
+    {
+      "username": "grace",
+      "displayName": "Grace",
+      "clip": "IMG_4223.mp4",
+      "option": "Yes",
+      "audience": "friends"
+    },
+    {
+      "username": "daniel",
+      "displayName": "Daniel",
+      "clip": "IMG_4213.mp4",
+      "option": "No",
+      "audience": "friends"
+    },
+    {
+      "username": "kevin",
+      "displayName": "Kevin",
+      "clip": "FullSizeRender.mp4",
+      "option": "No",
+      "audience": "friends"
+    },
+    {
+      "username": "jaylen",
+      "displayName": "Jaylen",
+      "clip": "FullSizeRender-1.mp4",
+      "option": "Yes",
+      "audience": "public"
+    },
+    {
+      "username": "arjun",
+      "displayName": "Arjun",
+      "clip": "IMG_4208.mp4",
+      "option": "No",
+      "audience": "public"
+    },
+    {
+      "username": "sofia",
+      "displayName": "Sofia",
+      "clip": "IMG_4217.mp4",
+      "option": "Yes",
+      "audience": "public"
+    },
+    {
+      "username": "rohan",
+      "displayName": "Rohan",
+      "clip": "IMG_4209.mp4",
+      "option": "No",
+      "audience": "public"
+    },
+    {
+      "username": "elena",
+      "displayName": "Elena",
+      "clip": "IMG_4218.mp4",
+      "option": "Yes",
+      "audience": "public"
+    },
+    {
+      "username": "vikram",
+      "displayName": "Vikram",
+      "clip": "IMG_4211.mp4",
+      "option": "No",
+      "audience": "public"
+    },
+    {
+      "username": "ethan",
+      "displayName": "Ethan",
+      "clip": "IMG_4219.mp4",
+      "option": "No",
+      "audience": "public"
+    },
+    {
+      "username": "nikhil",
+      "displayName": "Nikhil",
+      "clip": "IMG_4220.mp4",
+      "option": "No",
+      "audience": "public"
+    }
+  ],
+  "friends": [
+    "demo",
+    "marcus",
+    "owen",
+    "grace",
+    "daniel",
+    "kevin"
+  ],
+  "comments": [
+    {
+      "author": "grace",
+      "parent": "owen",
+      "text": "Agreed. Do not cheat on your wife."
+    },
+    {
+      "author": "daniel",
+      "parent": "kevin",
+      "text": "30 years of results speaks for itself."
+    },
+    {
+      "author": "marcus",
+      "parent": "jaylen",
+      "text": "Leadership is personal. Facts."
+    }
+  ],
+  "likes": [
+    [
+      "grace",
+      "owen"
+    ],
+    [
+      "marcus",
+      "owen"
+    ],
+    [
+      "kevin",
+      "daniel"
+    ],
+    [
+      "owen",
+      "grace"
+    ],
+    [
+      "daniel",
+      "kevin"
+    ],
+    [
+      "owen",
+      "jaylen"
+    ],
+    [
+      "kevin",
+      "arjun"
+    ],
+    [
+      "grace",
+      "elena"
+    ],
+    [
+      "daniel",
+      "ethan"
+    ]
+  ],
+  "votes": [
+    [
+      "owen",
+      "jaylen"
+    ],
+    [
+      "kevin",
+      "arjun"
+    ],
+    [
+      "marcus",
+      "sofia"
+    ],
+    [
+      "daniel",
+      "rohan"
+    ],
+    [
+      "grace",
+      "elena"
+    ],
+    [
+      "ethan",
+      "vikram"
+    ],
+    [
+      "nikhil",
+      "arjun"
+    ]
+  ]
+}

@@ -1,4 +1,4 @@
-# Reals
+# Takes
 
 A native iPhone app for a daily video opinion. Pick a position, post a 3–15-second take, then see that round's conversation. Friends-only is the default; the requested next version adds opt-in public takes, For You, likes, comments and battles.
 
