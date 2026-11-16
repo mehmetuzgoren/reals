@@ -7,7 +7,7 @@ final class RealsMocksTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testEightMockScreensWithExplicitOfflineSamplePublication() {
+    func testMockScreensWithExplicitOfflineSamplePublication() {
         let app = XCUIApplication()
         app.launchArguments = ["--demo", "--mock-demo", "--reset-mock-demo"]
         app.launch()
@@ -76,27 +76,17 @@ final class RealsMocksTests: XCTestCase {
         attachScreen(6, app: app)
 
         jordan.tap()
-        requireHittable(app.buttons["Battle"])
         requireHittable(app.buttons["Open replies"])
         XCTAssertTrue(app.staticTexts["jordan.lee · Yes"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Battle"].exists)
         XCTAssertEqual(app.buttons["Like"].value as? String, "248, not liked")
         XCTAssertEqual(app.buttons["Comments"].value as? String, "56")
         pauseVideo(app)
         attachScreen(7, app: app)
 
-        app.buttons["Battle"].tap()
-        requireHittable(app.buttons["Battle left"])
-        requireHittable(app.buttons["Battle right"])
-        XCTAssertTrue(app.staticTexts["Battle"].exists)
-        XCTAssertTrue(app.staticTexts["55%"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["45%"].exists)
-        XCTAssertTrue(app.staticTexts["Tap the take you think is right"].exists)
-        XCTAssertTrue((app.buttons["Battle left"].value as? String)?.contains("jordan.lee, Yes") == true)
-        XCTAssertTrue((app.buttons["Battle right"].value as? String)?.contains("mira_k, No") == true)
-        XCTAssertTrue(app.buttons["Play left take"].exists)
-        XCTAssertTrue(app.buttons["Play right take"].exists)
-        XCTAssertFalse(app.alerts.firstMatch.exists)
-        attachScreen(8, app: app)
+        app.swipeRight()
+        requireHittable(jordan)
+        XCTAssertTrue(app.buttons["For You"].isSelected)
     }
 
     private func requireHittable(_ element: XCUIElement, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) {

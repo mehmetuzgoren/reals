@@ -108,3 +108,14 @@ extension View {
     func takeScreen() -> some View { self.background(TakeTheme.background).foregroundStyle(TakeTheme.white).toolbarBackground(TakeTheme.background, for: .navigationBar).toolbarColorScheme(.dark, for: .navigationBar) }
     func takeCard() -> some View { self.padding(20).background(TakeTheme.surface, in: RoundedRectangle(cornerRadius: 24)) }
 }
+
+extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
+    override open func viewDidLoad() {
+        super.viewDidLoad()
+        interactivePopGestureRecognizer?.delegate = self
+    }
+
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        gestureRecognizer !== interactivePopGestureRecognizer || viewControllers.count > 1
+    }
+}

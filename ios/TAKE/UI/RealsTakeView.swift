@@ -18,7 +18,6 @@ struct RealsTakeView: View {
     @State private var failure: String?
     @State private var draft: PublicationDraft?
     @State private var comments: CommentDestination?
-    @State private var battle: BattleDestination?
     @State private var cancelWatch: (() -> Void)?
     @State private var visible = false
     @State private var viewEpoch = UUID()
@@ -30,9 +29,6 @@ struct RealsTakeView: View {
         var id: String { "\(kind.rawValue):\(contentID)" }
     }
 
-    private struct BattleDestination: Identifiable {
-        let id: String
-    }
 
     private var selectedReply: ReplySummary? { replies.first { $0.id == selectedReplyID } }
     private var authorizationID: String { "\(model.generation)-\(model.accessRevision)-\(round.id)" }
@@ -106,7 +102,10 @@ struct RealsTakeView: View {
             }
             .foregroundStyle(TakeTheme.white)
             .simultaneousGesture(DragGesture(minimumDistance: 35).onEnded { value in
-                guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                if abs(value.translation.width) > abs(value.translation.height) {
+                    if value.translation.width > 60 { dismiss() }
+                    return
+                }
                 Task { await pageReply(forward: value.translation.height < 0) }
             })
         }
@@ -132,9 +131,6 @@ struct RealsTakeView: View {
         .fullScreenCover(item: $draft, onDismiss: { Task { await load() } }) { value in
             RealsComposerView(initialDraft: value, round: round).environmentObject(model)
         }
-        .fullScreenCover(item: $battle, onDismiss: { Task { await load() } }) { destination in
-            RealsBattleView(battleID: destination.id, round: round).environmentObject(model)
-        }
         .alert("Takes", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
             Button("OK", role: .cancel) { failure = nil }
         } message: { Text(failure ?? "") }
@@ -151,26 +147,6 @@ struct RealsTakeView: View {
 
     private func identity(original: OriginalSummary, reply: ReplySummary?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if reply == nil, original.audience == .public, let reference = original.battle {
-                Button {
-                    guard RealsContentAccess(model: model, roundID: round.id) != nil else { return }
-                    PlaybackCoordinator.shared.pause()
-                    battle = BattleDestination(id: reference.battleId)
-                } label: {
-                    HStack(spacing: 7) {
-                        RealsCrossedSwords().stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)).frame(width: 13, height: 13)
-                        Text("Battle vs \(reference.opponent.username)").font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(TakeTheme.background)
-                    .padding(.horizontal, 13)
-                    .frame(height: 32)
-                    .background(TakeTheme.white, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Battle")
-                .accessibilityIdentifier("Battle")
-                .padding(.bottom, 3)
-            }
             HStack(spacing: 10) {
                 RealsAvatar(profile: reply?.author ?? original.author, size: 36)
                 if let reply {
@@ -338,7 +314,7 @@ struct RealsTakeView: View {
         viewEpoch = UUID(); loadEpoch = UUID()
         cancelWatch?(); cancelWatch = nil
         original = nil; replies = []; cursor = nil; selectedReplyID = nil
-        draft = nil; comments = nil; battle = nil
+        draft = nil; comments = nil
         paging = false; liking = false; failure = nil
     }
 }
@@ -492,32 +468,5 @@ private struct RealsPlayerLayer: UIViewRepresentable {
     final class PlayerView: UIView {
         override class var layerClass: AnyClass { AVPlayerLayer.self }
         var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-    }
-}
-
-private struct RealsCrossedSwords: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.75, y: rect.minY + rect.height * 0.75))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.35))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.14))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.88, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.25, y: rect.minY + rect.height * 0.75))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.88, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.65, y: rect.minY + rect.height * 0.14))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.88, y: rect.minY + rect.height * 0.12))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.86, y: rect.minY + rect.height * 0.35))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.58, y: rect.minY + rect.height * 0.78))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.78, y: rect.minY + rect.height * 0.58))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.22, y: rect.minY + rect.height * 0.58))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.42, y: rect.minY + rect.height * 0.78))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.74, y: rect.minY + rect.height * 0.74))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.88, y: rect.minY + rect.height * 0.88))
-        path.move(to: CGPoint(x: rect.minX + rect.width * 0.26, y: rect.minY + rect.height * 0.74))
-        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.88))
-        return path
     }
 }

@@ -16,7 +16,7 @@ def collect(value):
             collect(item)
     elif isinstance(value, dict):
         strings = [item for item in value.values() if isinstance(item, str)]
-        labels = [re.search(r"mocks-v2-screen-(0[1-8])(?:\b|_)", item) for item in strings]
+        labels = [re.search(r"mocks-v2-screen-(0[1-7])(?:\b|_)", item) for item in strings]
         labels = [match.group(1) for match in labels if match]
         if labels:
             for item in strings:
@@ -48,6 +48,6 @@ extras = sorted((path for path in directory.iterdir() if path.suffix.lower() in 
 for index, path in enumerate(extras[-3:], start=1):
     emit(f"x{index}", path)
 
-missing = [f"{index:02}" for index in range(1, 9) if f"{index:02}" not in screens]
+missing = [f"{index:02}" for index in range(1, 8) if f"{index:02}" not in screens]
 if missing:
     raise SystemExit(f"REALS_MOCK_MISSING {' '.join(missing)}")
