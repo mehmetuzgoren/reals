@@ -52,7 +52,7 @@ struct WelcomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                Text("Takes").font(.system(size: 40, weight: .bold)).tracking(-1).padding(.top, 150).padding(.bottom, 160)
+                Text("Takes").font(.system(size: 40, weight: .bold)).tracking(-1).padding(.top, 130).padding(.bottom, 120)
                 BrowserAppleSignInButton {
                     Task {
                         signingIn = true
@@ -65,21 +65,24 @@ struct WelcomeView: View {
                             await model.establishSession()
                         } catch {
                             if epoch == model.generation, !(error is CancellationError), (error as? ASWebAuthenticationSessionError)?.code != .canceledLogin {
-                                model.error = "Couldn't sign in with Apple. Check your connection and try again."
+                                model.error = String(describing: error).contains("PROCESSING_UNAVAILABLE")
+                                    ? "Sign in with Apple isn't set up on this server yet. Sign in with a username instead."
+                                    : "Couldn't sign in with Apple. Check your connection and try again."
                             }
                         }
                     }
                 }
                 .frame(height: 54).clipShape(Capsule())
                 .disabled(signingIn)
+                Button { showDeveloperSignIn = true } label: {
+                    Text("Sign in with username").font(.system(size: 17, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 56)
+                        .overlay(Capsule().stroke(.white, lineWidth: 1))
+                }.buttonStyle(.plain).disabled(signingIn).accessibilityIdentifier("Sign in with username")
                 Button { Task { await model.enterDemo() } } label: {
                     Text("Try the demo").font(.system(size: 17, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 56)
                         .overlay(Capsule().stroke(.white, lineWidth: 1))
                 }.buttonStyle(.plain).accessibilityIdentifier("Try the demo")
                 Text("An offline demo with fictional people and sample clips.").font(.system(size: 13)).foregroundStyle(TakeTheme.muted).multilineTextAlignment(.center)
-                #if DEBUG
-                Button("Sign in with username") { showDeveloperSignIn = true }.font(.system(size: 15)).frame(minHeight: 44)
-                #endif
             }
             .padding(24).frame(maxWidth: 580)
         }
@@ -122,22 +125,22 @@ struct DeveloperSignInView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Development deployments only. These accounts are separate from the offline demo.")
+                    Text("Username accounts work on development servers. They're separate from the offline demo.")
                     if reauthenticate { Text("Sign in to the same account again to confirm deletion. A refreshed session isn't enough.") }
                 }
-                Section("Development credentials") {
-                    TextField("Authentication username", text: $username).textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.username)
+                Section("Account") {
+                    TextField("Username", text: $username).textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.username)
                     SecureField("Password", text: $password).textContentType(createAccount ? .newPassword : .password)
-                    if !reauthenticate { Toggle("Create a development account", isOn: $createAccount) }
+                    if !reauthenticate { Toggle("Create a new account", isOn: $createAccount) }
                 }
                 if let failure { Section { Text(failure).foregroundStyle(TakeTheme.muted) } }
                 Section {
-                    Button(signingIn ? "Signing in…" : reauthenticate ? "Sign in again to confirm" : createAccount ? "Create development account" : "Sign in to development") { Task { await signIn() } }
+                    Button(signingIn ? "Signing in…" : reauthenticate ? "Sign in again to confirm" : createAccount ? "Create account" : "Sign in") { Task { await signIn() } }
                         .disabled(signingIn || username.isEmpty || password.isEmpty)
                 }
             }
             .disabled(signingIn)
-            .scrollContentBackground(.hidden).takeScreen().navigationTitle("Developer sign-in")
+            .scrollContentBackground(.hidden).takeScreen().navigationTitle("Sign in with username")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { password = ""; dismiss() }.disabled(signingIn) } }
         }
         .interactiveDismissDisabled(signingIn)
@@ -149,11 +152,7 @@ struct DeveloperSignInView: View {
         defer { password = ""; signingIn = false }
         let epoch = model.generation
         do {
-            #if DEBUG
             guard !model.isDemo else { throw ServiceFailure.notConfigured }
-            #else
-            throw ServiceFailure.notConfigured
-            #endif
             let authentication = try model.prepareLive()
             try await authentication.signInDevelopment(username: username, password: password, createAccount: !reauthenticate && createAccount, reauthenticate: reauthenticate)
             guard epoch == model.generation, model.service === authentication else { return }
@@ -164,7 +163,7 @@ struct DeveloperSignInView: View {
             }
         } catch {
             guard epoch == model.generation else { return }
-            failure = (error as? ServiceFailure)?.message ?? "Development sign-in was refused. Check your credentials and that the server enables development authentication."
+            failure = (error as? ServiceFailure)?.message ?? "Sign-in was refused. Check your username and password; this server may not allow username accounts."
         }
     }
 }

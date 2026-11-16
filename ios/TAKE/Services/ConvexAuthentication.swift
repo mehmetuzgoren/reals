@@ -142,11 +142,7 @@ final class ConvexAuthentication: NSObject, ConvexMobile.AuthProvider, ASWebAuth
     }
 
     func signInDevelopment(username: String, password: String, createAccount: Bool, expectedUserID: String? = nil) async throws {
-        #if DEBUG
         guard !ProcessInfo.processInfo.arguments.contains("--demo") else { throw ServiceFailure.notConfigured }
-        #else
-        throw ServiceFailure.notConfigured
-        #endif
         let attempt = UUID()
         cancelBrowser(); signInID = attempt
         defer { if signInID == attempt { signInID = nil } }
@@ -156,7 +152,7 @@ final class ConvexAuthentication: NSObject, ConvexMobile.AuthProvider, ASWebAuth
         try Task.checkCancellation()
         guard signInID == attempt else { throw CancellationError() }
         guard result.status == "complete", let tokens = result.tokens else {
-            throw ServiceFailure(code: "DEVELOPMENT_SIGN_IN_FAILED", message: "Development sign-in was refused. Check the credentials and that this deployment enables development authentication.", retryable: false)
+            throw ServiceFailure(code: "DEVELOPMENT_SIGN_IN_FAILED", message: "Sign-in was refused. Check your username and password; this server may not allow username accounts.", retryable: false)
         }
         try await accept(tokens, method: "usernamePassword", expectedUserID: expectedUserID)
     }
