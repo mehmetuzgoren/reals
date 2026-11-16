@@ -18,6 +18,8 @@ struct RealsTakeView: View {
     @State private var failure: String?
     @State private var draft: PublicationDraft?
     @State private var comments: CommentDestination?
+    @State private var tipping: TipDestination?
+    @State private var notice: String?
     @State private var cancelWatch: (() -> Void)?
     @State private var visible = false
     @State private var viewEpoch = UUID()
@@ -27,6 +29,11 @@ struct RealsTakeView: View {
         let contentID: String
         let kind: ContentKind
         var id: String { "\(kind.rawValue):\(contentID)" }
+    }
+
+    private struct TipDestination: Identifiable {
+        let author: PublicProfile
+        var id: String { author.id }
     }
 
 
@@ -67,7 +74,7 @@ struct RealsTakeView: View {
                         HStack(alignment: .bottom, spacing: 10) {
                             identity(original: original, reply: reply)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            rail(contentID: contentID, kind: kind, likeCount: reply?.likeCount ?? original.likeCount, liked: reply?.viewerLiked ?? original.viewerLiked, commentCount: reply?.visibleCommentCount ?? original.visibleCommentCount)
+                            rail(contentID: contentID, kind: kind, tipAuthor: reply == nil && original.audience == .public && original.author.id != model.service?.viewerID ? original.author : nil, likeCount: reply?.likeCount ?? original.likeCount, liked: reply?.viewerLiked ?? original.viewerLiked, commentCount: reply?.visibleCommentCount ?? original.visibleCommentCount)
                         }
                         .padding(.leading, 16)
                         .padding(.trailing, 16)
@@ -128,6 +135,15 @@ struct RealsTakeView: View {
             RealsCommentsView(contentID: destination.contentID, kind: destination.kind, conversationID: originalID)
                 .environmentObject(model)
         }
+        .sheet(item: $tipping) { destination in
+            RealsTipSheet(author: destination.author) { amount in
+                tipping = nil
+                notice = "Tipping isn't live yet, so your $\(amount) tip wasn't sent and you weren't charged. Payments by Whop are coming soon."
+            }
+        }
+        .alert("Tip", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button("OK", role: .cancel) { notice = nil }
+        } message: { Text(notice ?? "") }
         .fullScreenCover(item: $draft, onDismiss: { Task { await load() } }) { value in
             RealsComposerView(initialDraft: value, round: round).environmentObject(model)
         }
@@ -164,8 +180,23 @@ struct RealsTakeView: View {
         }
     }
 
-    private func rail(contentID: String, kind: ContentKind, likeCount: Int, liked: Bool, commentCount: Int) -> some View {
+    private func rail(contentID: String, kind: ContentKind, tipAuthor: PublicProfile?, likeCount: Int, liked: Bool, commentCount: Int) -> some View {
         VStack(spacing: 22) {
+            if let tipAuthor {
+                Button {
+                    guard RealsContentAccess(model: model, roundID: round.id) != nil else { return }
+                    PlaybackCoordinator.shared.pause()
+                    tipping = TipDestination(author: tipAuthor)
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "dollarsign.circle").font(.system(size: 23, weight: .regular))
+                        Text("Tip").font(.system(size: 14, weight: .semibold))
+                    }
+                    .frame(width: 52, height: 46)
+                }
+                .accessibilityLabel("Tip")
+                .accessibilityIdentifier("Tip")
+            }
             Button { Task { await toggleLike(contentID: contentID, kind: kind) } } label: {
                 VStack(spacing: 6) {
                     Image(systemName: liked ? "heart.fill" : "heart").font(.system(size: 23, weight: .regular))
@@ -314,8 +345,63 @@ struct RealsTakeView: View {
         viewEpoch = UUID(); loadEpoch = UUID()
         cancelWatch?(); cancelWatch = nil
         original = nil; replies = []; cursor = nil; selectedReplyID = nil
-        draft = nil; comments = nil
+        draft = nil; comments = nil; tipping = nil; notice = nil
         paging = false; liking = false; failure = nil
+    }
+}
+
+struct RealsTipSheet: View {
+    let author: PublicProfile
+    let onTip: (Int) -> Void
+    @State private var amount = 3
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 14) {
+                RealsAvatar(profile: author, size: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Tip \(author.username)").font(.system(size: 17, weight: .bold))
+                    Text("For their take on today's prompt").font(.system(size: 14)).foregroundStyle(TakeTheme.muted)
+                }
+            }
+            HStack(spacing: 10) {
+                ForEach([1, 3, 5], id: \.self) { value in
+                    Button { amount = value } label: {
+                        Text("$\(value)")
+                            .font(.system(size: 18, weight: .bold))
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                            .background(Color(white: 42.0 / 255.0), in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(TakeTheme.white, lineWidth: amount == value ? 1.5 : 0))
+                            .contentShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("$\(value)")
+                    .accessibilityIdentifier("Tip amount \(value)")
+                    .accessibilityAddTraits(amount == value ? .isSelected : [])
+                }
+            }
+            Button { onTip(amount) } label: {
+                Text("Tip $\(amount)")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(TakeTheme.background)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(TakeTheme.white, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("Send tip")
+            Text("Tips go to the creator and don't change any counts.\nPayments by Whop.")
+                .font(.system(size: 12))
+                .foregroundStyle(TakeTheme.muted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 28)
+        .foregroundStyle(TakeTheme.white)
+        .presentationDetents([.height(320)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(TakeTheme.surface)
+        .preferredColorScheme(.dark)
     }
 }
 

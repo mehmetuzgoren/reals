@@ -146,6 +146,26 @@ describe("v4 audience and public authorization", () => {
     await expect(t.query(api.takes.forYou, { roundId, cursor: null, limit: 8 })).rejects.toThrow("UNAUTHENTICATED");
   });
 
+  it("ranks For You by public likes, then newest, and pages through the ranking", async () => {
+    const t = setup();
+    const a = await user(t, "liked_least"); const b = await user(t, "liked_most"); const c = await user(t, "newest_unliked"); const viewer = await user(t, "ranker");
+    const roundId = await round(t);
+    const least = await post(a.client, roundId);
+    vi.setSystemTime(Date.now() + 10);
+    const most = await post(b.client, roundId);
+    vi.setSystemTime(Date.now() + 10);
+    const newest = await post(c.client, roundId);
+    await publish(viewer.client, roundId);
+    await like(viewer.client, most.originalId);
+    await like(c.client, most.originalId);
+    await like(viewer.client, least.originalId);
+    const first = await forYou(viewer.client, roundId, null, 2);
+    expect(first.items.map(item => [item.id, item.likeCount])).toEqual([[most.originalId, 2], [least.originalId, 1]]);
+    const rest = await forYou(viewer.client, roundId, first.nextCursor, 2);
+    expect(rest).toMatchObject({ items: [{ id: newest.originalId, likeCount: 0 }], nextCursor: null });
+    await expect(forYou(viewer.client, roundId, "not-in-ranking", 2)).rejects.toThrow("NOT_FOUND");
+  });
+
   it("inherits a public reply audience without friendship and rejects every explicit reply audience", async () => {
     const w = await publicWorld();
     for (const audience of ["friends", "public"] as const) {

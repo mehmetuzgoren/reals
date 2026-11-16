@@ -338,7 +338,10 @@ class DemoService: TakeService, DemoControlling {
         let visible: [OriginalSummary] = state.originals.map(\.summary).filter { (item: OriginalSummary) -> Bool in
             item.roundId == roundId && item.audience == .public && item.author.id != viewer && canView(item)
         }
-        let values: [OriginalSummary] = Self.newestFirst(visible).map { (item: OriginalSummary) -> OriginalSummary in summary(item) }
+        let newest: [OriginalSummary] = Self.newestFirst(visible).map { (item: OriginalSummary) -> OriginalSummary in summary(item) }
+        let values: [OriginalSummary] = newest.enumerated().sorted { (a, b) -> Bool in
+            a.element.likeCount == b.element.likeCount ? a.offset < b.offset : a.element.likeCount > b.element.likeCount
+        }.map(\.element)
         return page(values, cursor: cursor, limit: 8, id: { $0.id })
     }
     func detail(originalId: String) async throws -> OriginalSummary {

@@ -27,6 +27,7 @@ export const feed = query({ args: { roundId: v.id("rounds"), cursor: v.union(v.s
   for (const original of page) items.push(await originalDTO(ctx, user, original, scope));
   return { items, nextCursor: start + page.length < eligible.length ? page.at(-1)!._id : null };
 } });
+const forYouRankingWindow = 200;
 export const forYou = query({
   args: { roundId: v.id("rounds"), cursor: v.union(v.string(), v.null()), limit: v.number() },
   returns: v.object({ items: v.array(originalSummaryValidator), nextCursor: v.union(v.string(), v.null()) }),
@@ -34,20 +35,22 @@ export const forYou = query({
     const user = await viewer(ctx);
     if ((await currentRound(ctx))?._id !== args.roundId || !(await receipt(ctx, user._id, args.roundId))) return { items: [], nextCursor: null };
     const scope = accessScope();
-    let after = null;
-    if (args.cursor !== null) {
-      const id = ctx.db.normalizeId("originalTakes", args.cursor);
-      const original = id ? await ctx.db.get(id) : null;
-      if (!original || original.roundId !== args.roundId || original.audience !== "public" || original.authorId === user._id || !original.orderKey || !(await canViewOriginal(ctx, user, original, scope))) return notFound();
-      after = original.orderKey;
-    }
-    const page = await visiblePage(after, Math.min(8, pageLimit(args.limit)), (key, size) => ctx.db.query("originalTakes").withIndex("by_round_audience_deleted_order", q => {
+    const candidates = await visiblePage(null, forYouRankingWindow, (key, size) => ctx.db.query("originalTakes").withIndex("by_round_audience_deleted_order", q => {
       const range = q.eq("roundId", args.roundId).eq("audience", "public").eq("deleted", false);
       return key === null ? range : range.lt("orderKey", key);
     }).order("desc").take(size), async original => original.authorId !== user._id && await canViewOriginal(ctx, user, original, scope));
+    const ranked = [];
+    for (const original of candidates.items) {
+      const total = await ctx.db.query("likeCounts").withIndex("by_content_kind", q => q.eq("contentId", original._id).eq("kind", "original")).unique();
+      ranked.push({ original, likes: total?.count ?? 0 });
+    }
+    ranked.sort((a, b) => b.likes - a.likes || (a.original.orderKey! < b.original.orderKey! ? 1 : a.original.orderKey! > b.original.orderKey! ? -1 : 0));
+    const start = args.cursor === null ? 0 : ranked.findIndex(entry => entry.original._id === args.cursor) + 1;
+    if (args.cursor !== null && start === 0) return notFound();
+    const page = ranked.slice(start, start + Math.min(8, pageLimit(args.limit)));
     const items = [];
-    for (const original of page.items) items.push(await originalDTO(ctx, user, original, scope));
-    return { items, nextCursor: page.hasMore ? page.items.at(-1)!._id : null };
+    for (const { original } of page) items.push(await originalDTO(ctx, user, original, scope));
+    return { items, nextCursor: start + page.length < ranked.length ? page.at(-1)!.original._id : null };
   },
 });
 export const detail = query({ args: { originalId: v.string() }, handler: async (ctx, args) => {
